@@ -66,7 +66,19 @@ export default function SnapEditApp() {
       }
     } catch (err) {
       console.error("Error capturing screenshot: ", err);
-      toast({ title: "Capture Failed", description: (err as Error).message || "Could not capture screenshot.", variant: "destructive" });
+      let description = "An unknown error occurred while trying to capture the screenshot.";
+      if (err instanceof Error) {
+        const lowerCaseMessage = err.message.toLowerCase();
+        if (err.name === 'NotAllowedError' || 
+            lowerCaseMessage.includes('permission denied') ||
+            lowerCaseMessage.includes('disallowed by permissions policy') ||
+            lowerCaseMessage.includes('display-capture')) {
+          description = "Screen capture permission was denied or is not allowed in your current browser/embedding context. Please check your browser's site permissions for screen sharing. If this app is embedded (e.g., in an iframe), the embedding site needs to allow 'display-capture'.";
+        } else {
+          description = err.message || "Could not capture screenshot.";
+        }
+      }
+      toast({ title: "Capture Failed", description, variant: "destructive" });
     }
   };
 
