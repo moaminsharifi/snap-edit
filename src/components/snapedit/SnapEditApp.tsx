@@ -7,7 +7,16 @@ import { ScreenshotCanvas, Annotation, Point } from '@/components/snapedit/Scree
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { saveAs } from 'file-saver'; // Added for robust download
+import { saveAs } from 'file-saver';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export interface CropRect {
   x: number;
@@ -15,6 +24,8 @@ export interface CropRect {
   width: number;
   height: number;
 }
+
+const LOCAL_STORAGE_INTRO_KEY = 'snapEditIntroShown';
 
 export default function SnapEditApp() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -25,10 +36,27 @@ export default function SnapEditApp() {
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string; visible: boolean; canvasRelativeX: number, canvasRelativeY: number }>({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
   const [cropPreviewRect, setCropPreviewRect] = useState<CropRect | null>(null);
   const [isCropping, setIsCropping] = useState(false);
+  const [showInfoDialog, setShowInfoDialog] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenshotCanvasRef = useRef<{ performCrop: (rect: CropRect) => Promise<HTMLImageElement | null>, getCanvas: () => HTMLCanvasElement | null }>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const introShown = localStorage.getItem(LOCAL_STORAGE_INTRO_KEY);
+      if (!introShown) {
+        setShowInfoDialog(true);
+      }
+    }
+  }, []);
+
+  const handleInfoDialogConfirm = () => {
+    setShowInfoDialog(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LOCAL_STORAGE_INTRO_KEY, 'true');
+    }
+  };
 
   const updateHistory = useCallback((newAnnotations: Annotation[]) => {
     setAnnotationHistory(prevHistory => [...prevHistory, annotations]);
@@ -40,7 +68,6 @@ export default function SnapEditApp() {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
       const track = stream.getVideoTracks()[0];
       
-      // Delay needed for some browsers to actually start capture
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const imageCapture = new ImageCapture(track);
@@ -100,7 +127,7 @@ export default function SnapEditApp() {
   
   const handleClearCanvas = () => {
     if (image) {
-       updateHistory([]); // Clear annotations and update history
+       updateHistory([]);
     }
     setCropPreviewRect(null);
     setSelectedTool(null);
@@ -126,10 +153,10 @@ export default function SnapEditApp() {
     if (canvasRef.current) {
       const canvasRect = canvasRef.current.getBoundingClientRect();
       setTextInput({
-        x: canvasPosition.x + canvasRect.left, // Absolute position on page
-        y: canvasPosition.y + canvasRect.top,  // Absolute position on page
-        canvasRelativeX: point.x, // Position relative to canvas content
-        canvasRelativeY: point.y, // Position relative to canvas content
+        x: canvasPosition.x + canvasRect.left,
+        y: canvasPosition.y + canvasRect.top,
+        canvasRelativeX: point.x,
+        canvasRelativeY: point.y,
         value: '',
         visible: true
       });
@@ -144,7 +171,7 @@ export default function SnapEditApp() {
         x: textInput.canvasRelativeX,
         y: textInput.canvasRelativeY,
         text: textInput.value,
-        color: 'hsl(var(--accent))', // Use accent color
+        color: 'hsl(var(--accent))',
       });
     }
     setTextInput({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
@@ -183,7 +210,6 @@ export default function SnapEditApp() {
     if(selectedTool === 'crop') {
       setIsCropping(true);
     } else if (isCropping && selectedTool !== 'crop') {
-      // If tool changed from crop and crop wasn't confirmed, cancel crop
       setIsCropping(false);
       setCropPreviewRect(null);
     }
@@ -192,6 +218,25 @@ export default function SnapEditApp() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground font-body">
+      {showInfoDialog && (
+        <AlertDialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Welcome to SnapEdit!</AlertDialogTitle>
+              <AlertDialogDescription>
+                SnapEdit helps you capture and annotate screenshots with ease. 
+                To use the screen capture feature, your browser will ask for permission when you click the "Capture Screenshot" button.
+                <br /><br />
+                <strong>Your privacy is important:</strong> All image processing and annotation happen directly on your device. No images are uploaded to any server.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={handleInfoDialogConfirm}>Got it!</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       <header className="p-4 border-b shadow-sm bg-card sticky top-0 z-50">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-3xl font-headline font-semibold text-primary">SnapEdit</h1>
@@ -237,7 +282,7 @@ export default function SnapEditApp() {
             <div className="text-center p-10">
               <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-image-plus mx-auto mb-4 text-muted-foreground"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
               <h2 className="text-xl font-semibold text-foreground mb-2">No Image Captured</h2>
-              <p className="text-muted-foreground">Click "Capture Screenshot" above to get started.</p>
+              <p className="text-muted-foreground">Click "Capture Screenshot" above to get started, or drag and drop an image here.</p>
             </div>
           )}
         </div>
@@ -261,3 +306,6 @@ export default function SnapEditApp() {
     </div>
   );
 }
+
+
+    
