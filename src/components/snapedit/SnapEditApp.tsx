@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Github, ExternalLink } from 'lucide-react';
 
 export interface CropRect {
   x: number;
@@ -375,8 +376,28 @@ export default function SnapEditApp() {
         )}
       </main>
       <footer className="bg-card border-t border-border text-center p-6 text-sm text-muted-foreground">
-        <div className="container mx-auto">
+        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
           <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
+          <div className="flex items-center space-x-4">
+            <a 
+              href="https://snap-edit.moaminsharifi.com/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="hover:text-primary transition-colors flex items-center"
+            >
+              <ExternalLink className="w-4 h-4 mr-1" />
+              Live Demo
+            </a>
+            <a 
+              href="https://github.com/moaminsharifi/snap-edit" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="hover:text-primary transition-colors flex items-center"
+            >
+              <Github className="w-4 h-4 mr-1" />
+              View on GitHub
+            </a>
+          </div>
         </div>
       </footer>
     </div>
