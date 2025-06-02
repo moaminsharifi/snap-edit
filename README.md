@@ -1,4 +1,6 @@
 
+# SnapEdit
+![SnapEdit Logo](SnapEdit-logo.png)
 # SnapEdit - Easy Screenshot Capture & Annotation Tool
 
 SnapEdit is a Next.js application built in Firebase Studio that allows users to instantly capture their screen, annotate with powerful tools (arrows, text, shapes), and share their screenshots. It's designed to be fast, with all processing done locally in the browser for enhanced privacy.
@@ -38,6 +40,10 @@ This project is a Next.js starter designed to be used within Firebase Studio.
     This will start the Next.js development server, typically on `http://localhost:9002`.
 
 ## How It Works
+
+## Screenshots
+
+![SnapEdit Web Interface](SnapEdit-Web.png)
 
 SnapEdit utilizes browser APIs for screen capture (`navigator.mediaDevices.getDisplayMedia`) and the HTML Canvas API for image manipulation and annotation. All operations are performed in the user's browser, meaning no images are uploaded to any server, ensuring user privacy.
 
