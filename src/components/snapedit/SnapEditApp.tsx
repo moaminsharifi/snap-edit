@@ -407,7 +407,7 @@ export default function SnapEditApp() {
               <strong>Technologies:</strong> Powered by Next.js, React, ShadCN UI, Tailwind CSS.
             </p>
             <p>
-              <strong>SEO:</strong> Carefully crafted metadata ensures you can find us. See <code>src/app/layout.tsx</code>.
+              SnapEdit is your go-to online tool for instant screen capture and powerful image annotation. Edit screenshots with arrows, text, and shapes, all locally in your browser for maximum privacy. Perfect for quick markups and sharing.
             </p>
           </div>
         </div>
