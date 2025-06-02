@@ -1,65 +1,117 @@
-
 # SnapEdit
-![SnapEdit Logo](SnapEdit-logo.png)
-# SnapEdit - Easy Screenshot Capture & Annotation Tool
+![SnapEdit Logo](docs/SnapEdit-logo.png)
 
-SnapEdit is a Next.js application built in Firebase Studio that allows users to instantly capture their screen, annotate with powerful tools (arrows, text, shapes), and share their screenshots. It's designed to be fast, with all processing done locally in the browser for enhanced privacy.
+# SnapEdit - Your Go-To Screenshot Capture & Annotation Tool
 
-**Live Demo:** [https://snap-edit.moaminsharifi.com/](https://snap-edit.moaminsharifi.com/)
+SnapEdit is your go-to online tool for instant screen capture and powerful image annotation. Built with Next.js in Firebase Studio, it allows users to quickly capture their screen, annotate with professional tools (arrows, text, shapes), and share their screenshots. Designed for speed and privacy, with all processing done locally in your browser.
 
-**GitHub Repository:** [https://github.com/moaminsharifi/snap-edit](https://github.com/moaminsharifi/snap-edit)
+**🚀 Live Demo:** [https://snap-edit.moaminsharifi.com/](https://snap-edit.moaminsharifi.com/)
 
-## Features
+**📂 GitHub Repository:** [https://github.com/moaminsharifi/snap-edit](https://github.com/moaminsharifi/snap-edit)
 
--   **Screen Capture:** Quickly capture your entire screen, a specific window, or a browser tab.
--   **Annotation Tools:**
-    -   Crop
-    -   Rectangle
-    -   Circle
-    -   Arrow
-    -   Text
--   **Color Palette:** Choose from 12 distinct colors for your annotations.
--   **Undo Functionality:** Revert your last action.
--   **Clear Canvas:** Start fresh by clearing all annotations.
--   **Download Image:** Save your edited screenshot as a PNG file.
--   **Copy to Clipboard:** Easily copy the edited image to your clipboard.
--   **Local Processing:** All image processing and annotations happen client-side, ensuring your data stays private.
--   **Responsive Design:** Works on various screen sizes.
--   **Built with Modern Tech:** Next.js, React, ShadCN UI, Tailwind CSS.
+## ✨ Features
 
-## Getting Started
+### 📸 **Capture Methods**
+- **Screen Capture:** Instantly capture your entire screen, specific window, or browser tab
+- **Drag & Drop:** Simply drag and drop existing images for quick annotation
+- **Multiple Input Options:** Flexible ways to get your images into the editor
 
-This project is a Next.js starter designed to be used within Firebase Studio.
+### 🎨 **Powerful Annotation Tools**
+- **Crop:** Trim your screenshots to focus on what matters
+- **Rectangle:** Add rectangular highlights and frames  
+- **Circle:** Create circular annotations and callouts
+- **Arrow:** Point out important details with directional arrows
+- **Text:** Add custom text labels and descriptions
+- **12-Color Palette:** Choose from a vibrant selection of colors for all annotations
 
-1.  **Explore the Code:** Take a look at `src/app/page.tsx` to see the main entry point and `src/components/snapedit/SnapEditApp.tsx` for the core application logic.
-2.  **Run Locally (if outside Firebase Studio):**
-    ```bash
-    npm install
-    npm run dev
-    ```
-    This will start the Next.js development server, typically on `http://localhost:9002`.
+### ⚡ **Quick Actions**
+- **Undo Functionality:** Easily revert your last action
+- **Clear Canvas:** Start fresh by clearing all annotations
+- **Download Image:** Save your edited screenshot as a high-quality PNG
+- **Copy to Clipboard:** Instantly copy the edited image for quick sharing
 
-## How It Works
+### 🔒 **Privacy & Performance**
+- **100% Local Processing:** All image editing happens in your browser - no uploads required
+- **Maximum Privacy:** Your screenshots never leave your device
+- **Lightning Fast:** No server delays, instant editing and processing
+- **Responsive Design:** Works seamlessly across desktop, tablet, and mobile devices
 
-## Screenshots
+## 🛠️ **Built With Modern Technology**
+
+- **Next.js** - React framework for production
+- **React** - Component-based UI library  
+- **Firebase Studio** - Development and deployment platform
+- **ShadCN UI** - Modern component library
+- **Tailwind CSS** - Utility-first CSS framework
+
+## 🚀 Getting Started
+
+This project is optimized for Firebase Studio but can run in any Next.js environment.
+
+### **Quick Start**
+1. **Explore the Code:** Check out `src/app/page.tsx` for the main entry point and `src/components/snapedit/SnapEditApp.tsx` for core functionality
+2. **Run Locally:**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   The development server will start on `http://localhost:9002`
+
+### **Usage**
+1. Click "Capture Screenshot" to grab your screen
+2. Or drag and drop an existing image
+3. Use the annotation tools to markup your image
+4. Download or copy to clipboard when finished
+
+## 📸 Screenshots
 
 ![SnapEdit Web Interface](SnapEdit-Web.png)
+*Clean, intuitive interface designed for quick screenshot editing*
 
-SnapEdit utilizes browser APIs for screen capture (`navigator.mediaDevices.getDisplayMedia`) and the HTML Canvas API for image manipulation and annotation. All operations are performed in the user's browser, meaning no images are uploaded to any server, ensuring user privacy.
+## 🏗️ How It Works
 
-## Key Components
+SnapEdit leverages modern browser APIs to deliver a seamless experience:
 
--   `src/app/page.tsx`: The main page that renders the SnapEdit application.
--   `src/app/layout.tsx`: Defines the root layout, including metadata for SEO.
--   `src/components/snapedit/SnapEditApp.tsx`: The core component that manages state, user interactions, and orchestrates the various parts of the editor.
--   `src/components/snapedit/EditorToolbar.tsx`: Provides the UI for selecting tools, colors, and actions like download, clear, undo, and copy.
--   `src/components/snapedit/ScreenshotCanvas.tsx`: Handles the rendering of the image and annotations on an HTML canvas, and processes drawing interactions.
--   `src/components/ui/`: Contains ShadCN UI components used throughout the application.
+- **Screen Capture API** (`navigator.mediaDevices.getDisplayMedia`) for screen recording
+- **HTML5 Canvas API** for image manipulation and real-time annotation
+- **File API** for drag-and-drop image handling
+- **Clipboard API** for instant sharing capabilities
 
-## Privacy
+All operations are performed entirely in your browser, ensuring zero data transmission and maximum privacy.
 
-User privacy is a key consideration. SnapEdit processes all images and annotations directly on the user's device. No screenshot data is sent to or stored on any external server.
+## 📁 Project Structure
+
+```
+src/
+├── app/
+│   ├── page.tsx              # Main application entry point
+│   └── layout.tsx            # Root layout with SEO metadata
+├── components/
+│   ├── snapedit/
+│   │   ├── SnapEditApp.tsx           # Core application logic
+│   │   ├── EditorToolbar.tsx         # Tool selection and actions
+│   │   └── ScreenshotCanvas.tsx      # Canvas rendering and interactions
+│   └── ui/                   # ShadCN UI components
+```
+
+## 🔐 Privacy First
+
+Privacy is at the core of SnapEdit's design philosophy:
+
+- **No Data Collection:** We don't collect, store, or analyze your screenshots
+- **Local Processing:** All editing happens on your device
+- **No Server Uploads:** Your images never leave your browser
+- **Secure by Design:** No external dependencies for image processing
+
+## 🤝 Contributing
+
+We welcome contributions! Please feel free to submit issues and pull requests to help improve SnapEdit.
+
+## 📄 License
+
+This project is open source. See the repository for license details.
 
 ---
 
-This project was bootstrapped with Firebase Studio.
+*Built with ❤️ using Firebase Studio*
+
