@@ -19,13 +19,14 @@ export const metadata: Metadata = {
         height: 630,
         // Since this is purely metadata, we'll just note to replace it.
       },
+ {url: 'https://raw.githubusercontent.com/moaminsharifi/snap-edit/refs/heads/master/docs/SnapEdit-logo.png'},
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SnapEdit - Easy Screenshot Capture & Annotation Tool',
     description: 'Instantly capture your screen, annotate with powerful tools, and share. Fast, local, and privacy-focused.',
-    images: ['/SnapEdit-Web.png'],
+    images: ['https://raw.githubusercontent.com/moaminsharifi/snap-edit/refs/heads/master/docs/SnapEdit-Web.png'],
   },
 };
 
