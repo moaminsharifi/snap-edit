@@ -155,8 +155,15 @@ export function EditorToolbar({
           )}
         </div>
 
-        {showColorPalette && !isCropping && (
-          <div className="w-full pt-2 mt-2 border-t border-border">
+        <div
+          className={cn(
+            "w-full overflow-hidden transition-all duration-300 ease-in-out",
+            (showColorPalette && !isCropping)
+              ? "mt-2 pt-2 border-t border-border max-h-40 opacity-100"
+              : "max-h-0 opacity-0"
+          )}
+        >
+          {(showColorPalette && !isCropping) && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
               <Palette className="w-5 h-5 mr-2 text-muted-foreground" />
               {availableColors.map((color) => (
@@ -176,8 +183,8 @@ export function EditorToolbar({
                 </Tooltip>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </TooltipProvider>
   );
