@@ -314,7 +314,7 @@ export default function SnapEditApp() {
         </div>
       </header>
 
-      <main className="flex-grow flex flex-col items-center p-4 md:p-6 space-y-4">
+      <main className="flex-grow container mx-auto p-4 md:p-6 space-y-4 flex flex-col items-center">
         {image && (
           <EditorToolbar
             selectedTool={selectedTool}
