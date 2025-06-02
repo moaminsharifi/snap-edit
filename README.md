@@ -58,14 +58,17 @@ This project is optimized for Firebase Studio but can run in any Next.js environ
    The development server will start on `http://localhost:9002`
 
 ### **Usage**
-1. Click "Capture Screenshot" to grab your screen
+1. Click "Capture Screenshot" to grab your screen (or a window/tab)
 2. Or drag and drop an existing image
 3. Use the annotation tools to markup your image
 4. Download or copy to clipboard when finished
 
+
+
 ## 📸 Screenshots
 
-![SnapEdit Web Interface](SnapEdit-Web.png)
+![SnapEdit Web Interface](docs/screencapture-snap-edit-first-page.png)
+![SnapEdit Web Interface](docs/screencapture-snap-edit-edit-page.png)
 *Clean, intuitive interface designed for quick screenshot editing*
 
 ## 🏗️ How It Works
