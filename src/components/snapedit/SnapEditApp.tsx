@@ -132,7 +132,29 @@ export default function SnapEditApp() {
         if (blob) {
           try {
             if (!navigator.clipboard || !navigator.clipboard.write) {
-              throw new Error("Clipboard API not available.");
+              // Try to use a fallback for older browsers or if the API is blocked
+              // This part is a bit tricky and might not work in all scenarios, especially secure contexts.
+              const dataUrl = currentCanvas.toDataURL('image/png');
+              const success = await new Promise<boolean>(resolve => {
+                const textarea = document.createElement('textarea');
+                textarea.value = dataUrl; // This won't directly copy the image but some apps might parse it.
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                  document.execCommand('copy');
+                  resolve(true);
+                } catch (e) {
+                  resolve(false);
+                } finally {
+                  document.body.removeChild(textarea);
+                }
+              });
+              if (success) {
+                 toast({ title: "Copied Image Data URL!", description: "Image data URL copied. Paste where supported." });
+              } else {
+                throw new Error("Clipboard API not available and fallback failed.");
+              }
+              return; // Exit after fallback attempt
             }
             const clipboardItem = new ClipboardItem({ 'image/png': blob });
             await navigator.clipboard.write([clipboardItem]);
@@ -140,8 +162,8 @@ export default function SnapEditApp() {
           } catch (err) {
             console.error("Error copying to clipboard: ", err);
             let message = "Could not copy image to clipboard.";
-            if (err instanceof Error && err.message.includes("Clipboard API not available")) {
-                message = "Clipboard API is not available in this browser or context. Try downloading instead.";
+            if (err instanceof Error && (err.message.includes("Clipboard API not available") || err.message.includes("document.execCommand(\'copy\') was not successful"))) {
+                message = "Clipboard API is not available or failed in this browser/context. Try downloading instead.";
             } else if (err instanceof Error && err.message.toLowerCase().includes("permission denied")) {
                 message = "Clipboard permission denied. Please allow clipboard access in your browser settings.";
             }
@@ -284,7 +306,7 @@ export default function SnapEditApp() {
         </AlertDialog>
       )}
 
-      <header className="p-4 border-b shadow-sm bg-card sticky top-0 z-50">
+      <header className="p-4 border-b border-border shadow-sm bg-card sticky top-0 z-50">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-3xl font-headline font-semibold text-primary">SnapEdit</h1>
           <Button onClick={handleCaptureScreenshot} variant="default" size="lg">
@@ -352,8 +374,10 @@ export default function SnapEditApp() {
           />
         )}
       </main>
-      <footer className="text-center p-4 border-t text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
+      <footer className="bg-card border-t border-border text-center p-6 text-sm text-muted-foreground">
+        <div className="container mx-auto">
+          <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   );
