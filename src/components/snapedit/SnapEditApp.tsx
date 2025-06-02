@@ -305,8 +305,8 @@ export default function SnapEditApp() {
         </AlertDialog>
       )}
 
-      <header className="p-4 border-b border-border shadow-sm bg-card sticky top-0 z-50">
-        <div className="container mx-auto flex justify-between items-center">
+      <header className="container mx-auto p-4 border-b border-border shadow-sm bg-card sticky top-0 z-50">
+        <div className="flex justify-between items-center">
           <h1 className="text-3xl font-headline font-semibold text-primary">SnapEdit</h1>
           <Button onClick={handleCaptureScreenshot} variant="default" size="lg">
             Capture Screenshot
@@ -373,8 +373,8 @@ export default function SnapEditApp() {
           />
         )}
       </main>
-      <footer className="bg-card border-t border-border p-6 text-sm text-muted-foreground">
-        <div className="container mx-auto space-y-4">
+      <footer className="container mx-auto bg-card border-t border-border p-6 text-sm text-muted-foreground">
+        <div className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left space-y-2 sm:space-y-0">
             <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
             <div className="flex items-center space-x-4">
