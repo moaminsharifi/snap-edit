@@ -27,11 +27,27 @@ export interface CropRect {
 
 const LOCAL_STORAGE_INTRO_KEY = 'snapEditIntroShown';
 
+export const ANNOTATION_COLORS: string[] = [
+  'hsl(var(--accent))',      // Default Accent Blue
+  'hsl(0, 70%, 60%)',        // Red
+  'hsl(39, 90%, 60%)',       // Orange
+  'hsl(50, 80%, 55%)',       // Yellow
+  'hsl(120, 50%, 50%)',      // Green
+  'hsl(170, 60%, 50%)',      // Teal
+  'hsl(240, 60%, 70%)',      // Indigo
+  'hsl(300, 60%, 65%)',      // Pink/Magenta
+  'hsl(var(--foreground))',  // Default Text Color (Dark Gray/Black)
+  'hsl(0, 0%, 50%)',         // Medium Gray
+  'hsl(0, 0%, 90%)',         // Light Gray
+  'hsl(200, 70%, 60%)',      // Another Blue
+];
+
 export default function SnapEditApp() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [annotationHistory, setAnnotationHistory] = useState<Annotation[][]>([]);
+  const [currentAnnotationColor, setCurrentAnnotationColor] = useState<string>(ANNOTATION_COLORS[0]);
   
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string; visible: boolean; canvasRelativeX: number, canvasRelativeY: number }>({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
   const [cropPreviewRect, setCropPreviewRect] = useState<CropRect | null>(null);
@@ -171,7 +187,7 @@ export default function SnapEditApp() {
         x: textInput.canvasRelativeX,
         y: textInput.canvasRelativeY,
         text: textInput.value,
-        color: 'hsl(var(--accent))',
+        color: currentAnnotationColor, // Use selected color
       });
     }
     setTextInput({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
@@ -262,6 +278,9 @@ export default function SnapEditApp() {
               setIsCropping(false);
               setSelectedTool(null);
             }}
+            selectedColor={currentAnnotationColor}
+            onSelectColor={setCurrentAnnotationColor}
+            availableColors={ANNOTATION_COLORS}
           />
         )}
 
@@ -277,6 +296,7 @@ export default function SnapEditApp() {
               onRequestTextInput={handleRequestTextInput}
               cropPreviewRect={cropPreviewRect}
               onSetCropPreviewRect={setCropPreviewRect}
+              newAnnotationColor={currentAnnotationColor}
             />
           ) : (
             <div className="text-center p-10">
@@ -295,7 +315,7 @@ export default function SnapEditApp() {
             onBlur={handleTextInputConfirm}
             autoFocus
             className="fixed z-50 p-2 border rounded shadow-lg bg-card w-48 min-h-[40px] resize-none overflow-hidden"
-            style={{ left: `${textInput.x}px`, top: `${textInput.y}px` }}
+            style={{ left: `${textInput.x}px`, top: `${textInput.y}px`, color: currentAnnotationColor }}
             placeholder="Type text..."
           />
         )}
@@ -306,6 +326,3 @@ export default function SnapEditApp() {
     </div>
   );
 }
-
-
-    

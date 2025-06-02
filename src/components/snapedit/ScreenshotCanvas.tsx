@@ -21,7 +21,6 @@ export interface Annotation {
   endY?: number;
   text?: string;
   color: string;
-  // For circles
   radius?: number;
 }
 
@@ -31,27 +30,25 @@ interface ScreenshotCanvasProps {
   annotations: Annotation[];
   onAddAnnotation: (annotation: Annotation) => void;
   onRequestTextInput: (point: Point, canvasPosition: Point) => void;
-  externalCanvasRef: RefObject<HTMLCanvasElement>; // For main app to access canvas
+  externalCanvasRef: RefObject<HTMLCanvasElement>; 
   cropPreviewRect: CropRect | null;
   onSetCropPreviewRect: (rect: CropRect | null) => void;
+  newAnnotationColor: string; 
 }
 
 const LINE_WIDTH = 3;
-const ANNOTATION_COLOR = 'hsl(var(--accent))';
-const TEXT_COLOR = 'hsl(var(--accent))';
 const FONT_SIZE = 16;
 const FONT_FAMILY = 'Inter, sans-serif';
 
 
 export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Promise<HTMLImageElement | null>, getCanvas: () => HTMLCanvasElement | null }, ScreenshotCanvasProps>(
-  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect }, ref) => {
+  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect, newAnnotationColor }, ref) => {
     const internalCanvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [startPoint, setStartPoint] = useState<Point | null>(null);
     const [currentDrawing, setCurrentDrawing] = useState<Partial<Annotation> | null>(null);
-    const [canvasSize, setCanvasSize] = useState<{width: number, height: number}>({width: 800, height: 600}); // Default size
+    const [canvasSize, setCanvasSize] = useState<{width: number, height: number}>({width: 800, height: 600});
 
-    // Merge internal and external refs
     useEffect(() => {
       if (externalCanvasRef && internalCanvasRef.current) {
         (externalCanvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = internalCanvasRef.current;
@@ -73,8 +70,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         
         tempCtx.drawImage(
           image,
-          rect.x, rect.y, rect.width, rect.height, // Source rectangle (from original image)
-          0, 0, rect.width, rect.height             // Destination rectangle (on temp canvas)
+          rect.x, rect.y, rect.width, rect.height, 
+          0, 0, rect.width, rect.height             
         );
         
         return new Promise((resolve) => {
@@ -91,7 +88,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       const canvas = internalCanvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
-      // Adjust for canvas scaling if its display size is different from its resolution
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       return {
@@ -117,7 +113,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Resize canvas to image if image exists, otherwise use default/container size
       if (image) {
         if (canvas.width !== image.width || canvas.height !== image.height) {
            canvas.width = image.width;
@@ -125,7 +120,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
            setCanvasSize({width: image.width, height: image.height});
         }
       } else {
-        // Placeholder size if no image, or fit to parent
         const parent = canvas.parentElement;
         if (parent) {
             if(canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight){
@@ -141,7 +135,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       if (image) {
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       } else {
-        ctx.fillStyle = 'hsl(var(--card))'; // Placeholder background
+        ctx.fillStyle = 'hsl(var(--card))';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'hsl(var(--muted-foreground))';
         ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
@@ -154,23 +148,24 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
       annotations.forEach(ann => drawAnnotation(ctx, ann));
       if (isDrawing && currentDrawing && startPoint) {
-        drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: ANNOTATION_COLOR } as Annotation, true);
+        // Use newAnnotationColor for the preview drawing being created
+        drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: newAnnotationColor } as Annotation, true);
       }
       
       if (tool === 'crop' && cropPreviewRect) {
-        ctx.strokeStyle = 'rgba(var(--primary-rgb), 0.8)'; // Use primary color with opacity
+        ctx.strokeStyle = 'rgba(var(--primary-rgb), 0.8)'; 
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 6]);
         ctx.strokeRect(cropPreviewRect.x, cropPreviewRect.y, cropPreviewRect.width, cropPreviewRect.height);
         ctx.setLineDash([]);
       }
 
-    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize]);
+    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize, newAnnotationColor]); // Added newAnnotationColor to dependencies
     
 
     const drawAnnotation = (ctx: CanvasRenderingContext2D, ann: Annotation, isPreview = false) => {
       ctx.strokeStyle = ann.color;
-      ctx.fillStyle = ann.color;
+      ctx.fillStyle = ann.color; // For text and potentially filled shapes in future
       ctx.lineWidth = LINE_WIDTH;
 
       switch (ann.type) {
@@ -182,6 +177,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         case 'circle':
           if (ann.radius !== undefined) {
             ctx.beginPath();
+            // For circle, x,y is center. If drawing from corner, adjust.
+            // currentDrawing.x and currentDrawing.y are set to be the center in handleMouseMove
             ctx.arc(ann.x, ann.y, ann.radius, 0, 2 * Math.PI);
             ctx.stroke();
           }
@@ -191,8 +188,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.beginPath();
             ctx.moveTo(ann.x, ann.y);
             ctx.lineTo(ann.endX, ann.endY);
-            // Draw arrowhead
-            const headLength = 10 * (isPreview ? 0.8 : 1) ; // Arrow head length
+            const headLength = 10 * (isPreview ? 0.8 : 1) ; 
             const angle = Math.atan2(ann.endY - ann.y, ann.endX - ann.x);
             ctx.lineTo(ann.endX - headLength * Math.cos(angle - Math.PI / 6), ann.endY - headLength * Math.sin(angle - Math.PI / 6));
             ctx.moveTo(ann.endX, ann.endY);
@@ -203,7 +199,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         case 'text':
           if (ann.text) {
             ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
-            ctx.fillStyle = TEXT_COLOR;
+            // ann.color already set by drawAnnotation's fillStyle
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             ctx.fillText(ann.text, ann.x, ann.y);
@@ -224,7 +220,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
       setIsDrawing(true);
       setStartPoint(point);
-      setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: ANNOTATION_COLOR });
+      // Initialize currentDrawing with newAnnotationColor
+      setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: newAnnotationColor });
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
@@ -237,10 +234,11 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         const width = Math.abs(startPoint.x - point.x);
         const height = Math.abs(startPoint.y - point.y);
         onSetCropPreviewRect({ x, y, width, height });
-        return; // cropPreviewRect state change will trigger redraw
+        return;
       }
 
-      const current: Partial<Annotation> = { ...currentDrawing, color: ANNOTATION_COLOR };
+      // currentDrawing already has color from handleMouseDown
+      const current: Partial<Annotation> = { ...currentDrawing }; 
       switch (tool) {
         case 'rect':
           current.width = point.x - startPoint.x;
@@ -250,7 +248,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
           const dx = point.x - startPoint.x;
           const dy = point.y - startPoint.y;
           current.radius = Math.sqrt(dx * dx + dy * dy) / 2;
-          current.x = startPoint.x + dx / 2; // Center of circle
+          current.x = startPoint.x + dx / 2; 
           current.y = startPoint.y + dy / 2;
           break;
         case 'arrow':
@@ -270,7 +268,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       }
       
       if (tool === 'crop') {
-        // Crop selection is handled by onSetCropPreviewRect
         setIsDrawing(false);
         setStartPoint(null);
         return;
@@ -278,7 +275,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
       let finalAnnotation: Annotation | null = null;
       if (currentDrawing) {
-         // Adjust rectangle coordinates for positive width/height
+        // The color is already set in currentDrawing from handleMouseDown
         if (currentDrawing.type === 'rect' && currentDrawing.width !== undefined && currentDrawing.height !== undefined) {
             let x = startPoint.x;
             let y = startPoint.y;
@@ -286,11 +283,11 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             let h = currentDrawing.height;
             if (w < 0) { x = startPoint.x + w; w = -w; }
             if (h < 0) { y = startPoint.y + h; h = -h; }
-            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x, y, width: w, height: h, color: ANNOTATION_COLOR } as Annotation;
+            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x, y, width: w, height: h } as Annotation;
         } else if (currentDrawing.type === 'circle' && currentDrawing.radius !== undefined) {
-            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius, color: ANNOTATION_COLOR } as Annotation;
+            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius } as Annotation;
         } else if (currentDrawing.type === 'arrow' && currentDrawing.endX !== undefined && currentDrawing.endY !== undefined) {
-             finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY, color: ANNOTATION_COLOR } as Annotation;
+             finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY } as Annotation;
         }
       }
 
@@ -310,12 +307,13 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp} // End drawing if mouse leaves canvas
+        onMouseLeave={handleMouseUp} 
         className="w-full h-full object-contain cursor-crosshair"
-        style={{ touchAction: 'none' }} // prevent scrolling on touch devices
+        style={{ touchAction: 'none' }} 
       />
     );
   }
 );
 
 ScreenshotCanvas.displayName = 'ScreenshotCanvas';
+
