@@ -4,7 +4,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Crop, Square, Circle as CircleIcon, ArrowUpRight, Type, Download, Trash2, Undo2, Check, X, Palette } from 'lucide-react';
+import { Crop, Square, Circle as CircleIcon, ArrowUpRight, Type, Download, Trash2, Undo2, Check, X, Palette, ClipboardCopy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type Tool = 'crop' | 'rect' | 'circle' | 'arrow' | 'text';
@@ -15,6 +15,7 @@ interface EditorToolbarProps {
   onDownload: () => void;
   onClear: () => void;
   onUndo: () => void;
+  onCopyToClipboard: () => void;
   isCropping: boolean;
   hasCropSelection: boolean;
   onConfirmCrop: () => void;
@@ -40,6 +41,7 @@ export function EditorToolbar({
   onDownload,
   onClear,
   onUndo,
+  onCopyToClipboard,
   isCropping,
   hasCropSelection,
   onConfirmCrop,
@@ -99,6 +101,14 @@ export function EditorToolbar({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p>Clear Annotations</p></TooltipContent>
+              </Tooltip>
+               <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={onCopyToClipboard} aria-label="Copy to Clipboard" className="w-12 h-12">
+                    <ClipboardCopy className="w-6 h-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Copy to Clipboard</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>

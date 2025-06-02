@@ -112,7 +112,7 @@ export default function SnapEditApp() {
       let description = "An unknown error occurred while trying to capture the screenshot.";
       if (err instanceof Error) {
         const lowerCaseMessage = err.message.toLowerCase();
-        if (err.name === 'NotAllowedError' || 
+         if (err.name === 'NotAllowedError' || 
             lowerCaseMessage.includes('permission denied') ||
             lowerCaseMessage.includes('disallowed by permissions policy') ||
             lowerCaseMessage.includes('display-capture')) {
@@ -122,6 +122,37 @@ export default function SnapEditApp() {
         }
       }
       toast({ title: "Capture Failed", description, variant: "destructive" });
+    }
+  };
+
+  const handleCopyToClipboard = () => {
+    const currentCanvas = screenshotCanvasRef.current?.getCanvas();
+    if (currentCanvas) {
+      currentCanvas.toBlob(async (blob) => {
+        if (blob) {
+          try {
+            if (!navigator.clipboard || !navigator.clipboard.write) {
+              throw new Error("Clipboard API not available.");
+            }
+            const clipboardItem = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([clipboardItem]);
+            toast({ title: "Copied to Clipboard!", description: "Image copied successfully." });
+          } catch (err) {
+            console.error("Error copying to clipboard: ", err);
+            let message = "Could not copy image to clipboard.";
+            if (err instanceof Error && err.message.includes("Clipboard API not available")) {
+                message = "Clipboard API is not available in this browser or context. Try downloading instead.";
+            } else if (err instanceof Error && err.message.toLowerCase().includes("permission denied")) {
+                message = "Clipboard permission denied. Please allow clipboard access in your browser settings.";
+            }
+            toast({ title: "Copy Failed", description: message, variant: "destructive" });
+          }
+        } else {
+          toast({ title: "Copy Failed", description: "Could not generate image for copying.", variant: "destructive" });
+        }
+      }, 'image/png');
+    } else {
+      toast({ title: "Nothing to Copy", description: "Please capture or load an image first.", variant: "destructive" });
     }
   };
 
@@ -270,6 +301,7 @@ export default function SnapEditApp() {
             onDownload={handleDownload}
             onClear={handleClearCanvas}
             onUndo={handleUndo}
+            onCopyToClipboard={handleCopyToClipboard}
             isCropping={isCropping}
             hasCropSelection={!!cropPreviewRect}
             onConfirmCrop={handleConfirmCrop}
