@@ -133,12 +133,10 @@ export default function SnapEditApp() {
         if (blob) {
           try {
             if (!navigator.clipboard || !navigator.clipboard.write) {
-              // Try to use a fallback for older browsers or if the API is blocked
-              // This part is a bit tricky and might not work in all scenarios, especially secure contexts.
               const dataUrl = currentCanvas.toDataURL('image/png');
               const success = await new Promise<boolean>(resolve => {
                 const textarea = document.createElement('textarea');
-                textarea.value = dataUrl; // This won't directly copy the image but some apps might parse it.
+                textarea.value = dataUrl; 
                 document.body.appendChild(textarea);
                 textarea.select();
                 try {
@@ -155,7 +153,7 @@ export default function SnapEditApp() {
               } else {
                 throw new Error("Clipboard API not available and fallback failed.");
               }
-              return; // Exit after fallback attempt
+              return; 
             }
             const clipboardItem = new ClipboardItem({ 'image/png': blob });
             await navigator.clipboard.write([clipboardItem]);
@@ -241,7 +239,7 @@ export default function SnapEditApp() {
         x: textInput.canvasRelativeX,
         y: textInput.canvasRelativeY,
         text: textInput.value,
-        color: currentAnnotationColor, // Use selected color
+        color: currentAnnotationColor, 
       });
     }
     setTextInput({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
@@ -375,28 +373,42 @@ export default function SnapEditApp() {
           />
         )}
       </main>
-      <footer className="bg-card border-t border-border text-center p-6 text-sm text-muted-foreground">
-        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
-          <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
-          <div className="flex items-center space-x-4">
-            <a 
-              href="https://snap-edit.moaminsharifi.com/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="hover:text-primary transition-colors flex items-center"
-            >
-              <ExternalLink className="w-4 h-4 mr-1" />
-              Live Demo
-            </a>
-            <a 
-              href="https://github.com/moaminsharifi/snap-edit" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="hover:text-primary transition-colors flex items-center"
-            >
-              <Github className="w-4 h-4 mr-1" />
-              View on GitHub
-            </a>
+      <footer className="bg-card border-t border-border p-6 text-sm text-muted-foreground">
+        <div className="container mx-auto space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left space-y-2 sm:space-y-0">
+            <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
+            <div className="flex items-center space-x-4">
+              <a 
+                href="https://snap-edit.moaminsharifi.com/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-primary transition-colors flex items-center"
+              >
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Live Demo
+              </a>
+              <a 
+                href="https://github.com/moaminsharifi/snap-edit" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-primary transition-colors flex items-center"
+              >
+                <Github className="w-4 h-4 mr-1" />
+                View on GitHub
+              </a>
+            </div>
+          </div>
+          
+          <div className="text-center text-xs space-y-1">
+            <p>
+              <strong>Credits:</strong> Built with <a href="https://firebase.google.com/studio" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Firebase Studio</a>.
+            </p>
+            <p>
+              <strong>Technologies:</strong> Powered by Next.js, React, ShadCN UI, Tailwind CSS.
+            </p>
+            <p>
+              <strong>SEO:</strong> Carefully crafted metadata ensures you can find us. See <code>src/app/layout.tsx</code>.
+            </p>
           </div>
         </div>
       </footer>
