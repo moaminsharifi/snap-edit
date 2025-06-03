@@ -13,7 +13,7 @@ export interface Point {
 
 export interface Annotation {
   id: string;
-  type: Tool;
+  type: Tool; // Note: 'select' and 'crop' are tools, not annotation types. Actual type will be rect, circle etc.
   x: number;
   y: number;
   width?: number;
@@ -35,20 +35,28 @@ interface ScreenshotCanvasProps {
   cropPreviewRect: CropRect | null;
   onSetCropPreviewRect: (rect: CropRect | null) => void;
   newAnnotationColor: string;
+  selectedAnnotationId: string | null;
+  onSelectAnnotation: (id: string | null) => void;
+  onUpdateAnnotation: (annotation: Annotation) => void;
+  onEndAnnotationHistoryEntry: () => void; // Callback to finalize history entry after drag
 }
 
 const LINE_WIDTH = 3;
 const FONT_SIZE = 16;
 const FONT_FAMILY = 'Inter, sans-serif';
-
+const SELECTION_PADDING = 5; // Padding for hit testing text and arrows
 
 export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Promise<HTMLImageElement | null>, getCanvas: () => HTMLCanvasElement | null }, ScreenshotCanvasProps>(
-  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect, newAnnotationColor }, ref) => {
+  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect, newAnnotationColor, selectedAnnotationId, onSelectAnnotation, onUpdateAnnotation, onEndAnnotationHistoryEntry }, ref) => {
     const internalCanvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
+    const [isDrawing, setIsDrawing] = useState(false); // For new annotations
+    const [isDragging, setIsDragging] = useState(false); // For moving existing annotations
     const [startPoint, setStartPoint] = useState<Point | null>(null);
-    const [currentDrawing, setCurrentDrawing] = useState<Partial<Annotation> | null>(null);
+    const [currentDrawing, setCurrentDrawing] = useState<Partial<Annotation> | null>(null); // For new annotations
+    const [draggedAnnotationStartPos, setDraggedAnnotationStartPos] = useState<Point | null>(null); // Original position of annotation being dragged
     const [canvasSize, setCanvasSize] = useState<{width: number, height: number}>({width: 800, height: 600});
+    const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
+
 
     useEffect(() => {
       if (externalCanvasRef && internalCanvasRef.current) {
@@ -92,23 +100,42 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       const rect = canvas.getBoundingClientRect();
       const bitmapWidth = canvas.width;
       const bitmapHeight = canvas.height;
-      const elementWidth = rect.width;
-      const elementHeight = rect.height;
-      const scaleRatio = Math.min(elementWidth / bitmapWidth, elementHeight / bitmapHeight);
-      const renderedBitmapWidth = bitmapWidth * scaleRatio;
-      const renderedBitmapHeight = bitmapHeight * scaleRatio;
-      const offsetX = (elementWidth - renderedBitmapWidth) / 2;
-      const offsetY = (elementHeight - renderedBitmapHeight) / 2;
-      const mouseXInElement = e.clientX - rect.left;
-      const mouseYInElement = e.clientY - rect.top;
-      const mouseXOnRenderedBitmap = mouseXInElement - offsetX;
-      const mouseYOnRenderedBitmap = mouseYInElement - offsetY;
-      const finalX = mouseXOnRenderedBitmap / scaleRatio;
-      const finalY = mouseYOnRenderedBitmap / scaleRatio;
+      
+      // Calculate scale and offset if image is letterboxed/pillarboxed
+      let scale = 1;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (image) { // Only calculate scale/offset if there's an image
+        const canvasAspect = rect.width / rect.height;
+        const imageAspect = bitmapWidth / bitmapHeight; // Assuming canvas bitmap matches image dimensions
+
+        if (canvasAspect > imageAspect) { // Canvas is wider than image (letterboxed)
+            scale = rect.height / bitmapHeight;
+            offsetX = (rect.width - bitmapWidth * scale) / 2;
+        } else { // Canvas is taller than image (pillarboxed) or same aspect
+            scale = rect.width / bitmapWidth;
+            offsetY = (rect.height - bitmapHeight * scale) / 2;
+        }
+      } else { // No image, use direct mapping for placeholder text
+         scale = Math.min(rect.width / bitmapWidth, rect.height / bitmapHeight);
+         offsetX = (rect.width - bitmapWidth * scale) / 2;
+         offsetY = (rect.height - bitmapHeight * scale) / 2;
+
+      }
+      
+      const clientX = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
+
+      const mouseXInElement = clientX - rect.left;
+      const mouseYInElement = clientY - rect.top;
+
+      const finalX = (mouseXInElement - offsetX) / scale;
+      const finalY = (mouseYInElement - offsetY) / scale;
 
       return {
-        x: Math.max(0, Math.min(finalX, bitmapWidth)), // Clamp to bitmap bounds
-        y: Math.max(0, Math.min(finalY, bitmapHeight)),// Clamp to bitmap bounds
+        x: Math.max(0, Math.min(finalX, bitmapWidth)),
+        y: Math.max(0, Math.min(finalY, bitmapHeight)),
       };
     };
 
@@ -116,10 +143,71 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         const canvas = internalCanvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
+            x: clientX - rect.left,
+            y: clientY - rect.top,
         };
+    };
+
+    const getAnnotationAtPoint = (point: Point, ctx: CanvasRenderingContext2D): Annotation | null => {
+      for (let i = annotations.length - 1; i >= 0; i--) {
+        const ann = annotations[i];
+        switch (ann.type) {
+          case 'rect':
+            if (ann.width !== undefined && ann.height !== undefined) {
+              const x1 = Math.min(ann.x, ann.x + ann.width);
+              const x2 = Math.max(ann.x, ann.x + ann.width);
+              const y1 = Math.min(ann.y, ann.y + ann.height);
+              const y2 = Math.max(ann.y, ann.y + ann.height);
+              if (point.x >= x1 - SELECTION_PADDING && point.x <= x2 + SELECTION_PADDING && 
+                  point.y >= y1 - SELECTION_PADDING && point.y <= y2 + SELECTION_PADDING) return ann;
+            }
+            break;
+          case 'circle':
+            if (ann.radius !== undefined) {
+              const dx = point.x - ann.x;
+              const dy = point.y - ann.y;
+              if (Math.sqrt(dx * dx + dy * dy) <= ann.radius + SELECTION_PADDING) return ann;
+            }
+            break;
+          case 'arrow':
+            if (ann.endX !== undefined && ann.endY !== undefined) {
+              // Check bounding box of arrow for coarse check
+              const minX = Math.min(ann.x, ann.endX) - SELECTION_PADDING;
+              const maxX = Math.max(ann.x, ann.endX) + SELECTION_PADDING;
+              const minY = Math.min(ann.y, ann.endY) - SELECTION_PADDING;
+              const maxY = Math.max(ann.y, ann.endY) + SELECTION_PADDING;
+              if (point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) continue;
+
+              // Distance from point to line segment
+              const l2 = (ann.endX - ann.x) ** 2 + (ann.endY - ann.y) ** 2;
+              if (l2 === 0) { // Start and end points are the same
+                 if (Math.sqrt((point.x - ann.x)**2 + (point.y - ann.y)**2) < SELECTION_PADDING + LINE_WIDTH) return ann;
+                 continue;
+              }
+              let t = ((point.x - ann.x) * (ann.endX - ann.x) + (point.y - ann.y) * (ann.endY - ann.y)) / l2;
+              t = Math.max(0, Math.min(1, t));
+              const closestX = ann.x + t * (ann.endX - ann.x);
+              const closestY = ann.y + t * (ann.endY - ann.y);
+              const dist = Math.sqrt((point.x - closestX) ** 2 + (point.y - closestY) ** 2);
+              if (dist <= LINE_WIDTH / 2 + SELECTION_PADDING) return ann;
+            }
+            break;
+          case 'text':
+            if (ann.text) {
+              ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
+              const textMetrics = ctx.measureText(ann.text);
+              // Approximate height, actualBoundingBoxAscent/Descent are better but might not be available
+              const textHeight = FONT_SIZE * 1.2; 
+              if (point.x >= ann.x - SELECTION_PADDING && point.x <= ann.x + textMetrics.width + SELECTION_PADDING &&
+                  point.y >= ann.y - SELECTION_PADDING && point.y <= ann.y + textHeight + SELECTION_PADDING) return ann;
+            }
+            break;
+        }
+      }
+      return null;
     };
 
 
@@ -138,8 +226,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       } else {
         const parent = canvas.parentElement;
         if (parent) {
-            const displayWidth = parent.clientWidth;
-            const displayHeight = parent.clientHeight;
+            const displayWidth = Math.max(300, parent.clientWidth); // Ensure minimum size
+            const displayHeight = Math.max(200, parent.clientHeight);
             if(canvas.width !== displayWidth || canvas.height !== displayHeight){
                 canvas.width = displayWidth;
                 canvas.height = displayHeight;
@@ -164,9 +252,11 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      annotations.forEach(ann => drawAnnotation(ctx, ann));
-      if (isDrawing && currentDrawing && startPoint) {
-        drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: newAnnotationColor } as Annotation, true);
+      annotations.forEach(ann => drawAnnotation(ctx, ann, ann.id === selectedAnnotationId));
+      
+      if (isDrawing && currentDrawing && startPoint && currentDrawing.type !== 'select' && currentDrawing.type !== 'crop') {
+        // This type assertion is okay because we ensure type is not 'select' or 'crop'
+        drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: newAnnotationColor } as Annotation, false, true);
       }
 
       if (tool === 'crop' && cropPreviewRect) {
@@ -177,10 +267,11 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         ctx.setLineDash([]);
       }
 
-    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize, newAnnotationColor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize, newAnnotationColor, selectedAnnotationId, isDragging]);
 
 
-    const drawAnnotation = (ctx: CanvasRenderingContext2D, ann: Annotation, isPreview = false) => {
+    const drawAnnotation = (ctx: CanvasRenderingContext2D, ann: Annotation, isSelected = false, isPreview = false) => {
       ctx.strokeStyle = ann.color;
       ctx.fillStyle = ann.color;
       ctx.lineWidth = LINE_WIDTH;
@@ -189,6 +280,13 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         case 'rect':
           if (ann.width !== undefined && ann.height !== undefined) {
             ctx.strokeRect(ann.x, ann.y, ann.width, ann.height);
+             if (isSelected && !isPreview) {
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = 'hsl(var(--ring))'; // Use ring color for selection
+              ctx.lineWidth = 1;
+              ctx.strokeRect(ann.x - SELECTION_PADDING, ann.y - SELECTION_PADDING, ann.width + SELECTION_PADDING*2, ann.height + SELECTION_PADDING*2);
+              ctx.setLineDash([]);
+            }
           }
           break;
         case 'circle':
@@ -196,6 +294,15 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.beginPath();
             ctx.arc(ann.x, ann.y, ann.radius, 0, 2 * Math.PI);
             ctx.stroke();
+             if (isSelected && !isPreview) {
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = 'hsl(var(--ring))';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(ann.x, ann.y, ann.radius + SELECTION_PADDING, 0, 2 * Math.PI);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
           }
           break;
         case 'arrow':
@@ -209,6 +316,17 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.moveTo(ann.endX, ann.endY);
             ctx.lineTo(ann.endX - headLength * Math.cos(angle + Math.PI / 6), ann.endY - headLength * Math.sin(angle + Math.PI / 6));
             ctx.stroke();
+            if (isSelected && !isPreview) {
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = 'hsl(var(--ring))';
+              ctx.lineWidth = 1;
+              const minX = Math.min(ann.x, ann.endX) - SELECTION_PADDING;
+              const minY = Math.min(ann.y, ann.endY) - SELECTION_PADDING;
+              const maxX = Math.max(ann.x, ann.endX) + SELECTION_PADDING;
+              const maxY = Math.max(ann.y, ann.endY) + SELECTION_PADDING;
+              ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+              ctx.setLineDash([]);
+            }
           }
           break;
         case 'text':
@@ -217,31 +335,102 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             ctx.fillText(ann.text, ann.x, ann.y);
+             if (isSelected && !isPreview) {
+              const textMetrics = ctx.measureText(ann.text);
+              const textHeight = FONT_SIZE * 1.2; // Approximate
+              ctx.setLineDash([3, 3]);
+              ctx.strokeStyle = 'hsl(var(--ring))';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(ann.x - SELECTION_PADDING/2, ann.y - SELECTION_PADDING/2, textMetrics.width + SELECTION_PADDING, textHeight + SELECTION_PADDING);
+              ctx.setLineDash([]);
+            }
           }
           break;
       }
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-      if (!image && tool !== 'text' && tool !== null) return;
+      e.preventDefault(); // Prevent text selection, etc.
       if (!tool) return;
+      if (!image && tool !== 'text' && tool !== 'select' && tool !== null) return;
+
 
       const point = getMousePosition(e);
+      const canvas = internalCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (tool === 'select') {
+        const clickedAnnotation = getAnnotationAtPoint(point, ctx);
+        if (clickedAnnotation) {
+          onSelectAnnotation(clickedAnnotation.id);
+          setIsDragging(true);
+          setStartPoint(point); // Mouse start point for dragging
+          setDraggedAnnotationStartPos({ x: clickedAnnotation.x, y: clickedAnnotation.y }); // Annotation's original position
+        } else {
+          onSelectAnnotation(null);
+        }
+        return;
+      }
+      
+      // For all other tools (drawing, crop)
+      onSelectAnnotation(null); // Deselect any annotation if starting a new drawing/crop
+      setIsDrawing(true);
+      setStartPoint(point);
 
       if (tool === 'text') {
         const canvasClickPos = getCanvasClickPosition(e);
         onRequestTextInput(point, canvasClickPos);
+        setIsDrawing(false); // Text input handles its own logic
         return;
       }
-
-      setIsDrawing(true);
-      setStartPoint(point);
-      setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: newAnnotationColor });
+      
+      // Ensure currentDrawing.type is a valid Annotation['type']
+      if (tool !== 'crop' && tool !== 'select') {
+        setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: newAnnotationColor });
+      }
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-      if (!isDrawing || !startPoint || !tool ) return;
+      e.preventDefault();
+      if (!tool) return;
       const point = getMousePosition(e);
+
+      if (tool === 'select') {
+        const canvas = internalCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (isDragging && selectedAnnotationId && startPoint && draggedAnnotationStartPos) {
+          const originalAnnotation = annotations.find(ann => ann.id === selectedAnnotationId);
+          if (!originalAnnotation) return;
+
+          const dx = point.x - startPoint.x;
+          const dy = point.y - startPoint.y;
+
+          let updatedAnn: Annotation = { ...originalAnnotation };
+          updatedAnn.x = draggedAnnotationStartPos.x + dx;
+          updatedAnn.y = draggedAnnotationStartPos.y + dy;
+
+          if (originalAnnotation.type === 'arrow' && originalAnnotation.endX !== undefined && originalAnnotation.endY !== undefined) {
+              const originalEndX = (originalAnnotation.endX - originalAnnotation.x) + draggedAnnotationStartPos.x;
+              const originalEndY = (originalAnnotation.endY - originalAnnotation.y) + draggedAnnotationStartPos.y;
+              updatedAnn.endX = originalEndX + dx;
+              updatedAnn.endY = originalEndY + dy;
+          }
+          onUpdateAnnotation(updatedAnn);
+
+        } else { // Not dragging, just hovering
+           const ann = getAnnotationAtPoint(point, ctx);
+           setHoveredAnnotationId(ann ? ann.id : null);
+        }
+        return;
+      }
+      
+      // Drawing new shape or cropping
+      if (!isDrawing || !startPoint ) return;
 
       if (tool === 'crop') {
         if (!image) return;
@@ -274,7 +463,18 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       setCurrentDrawing(current);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (tool === 'select') {
+        if (isDragging) {
+            onEndAnnotationHistoryEntry(); // Finalize history after drag
+        }
+        setIsDragging(false);
+        setStartPoint(null);
+        setDraggedAnnotationStartPos(null);
+        return;
+      }
+
       if (!isDrawing || !startPoint || !tool ) {
         setIsDrawing(false);
         setStartPoint(null);
@@ -286,26 +486,28 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         if (!image) return;
         setIsDrawing(false);
         setStartPoint(null);
+        // Crop preview is already set, SnapEditApp handles confirmation
         return;
       }
 
       let finalAnnotation: Annotation | null = null;
-      if (currentDrawing) {
-        if (currentDrawing.type === 'rect' && currentDrawing.width !== undefined && currentDrawing.height !== undefined) {
+      if (currentDrawing && currentDrawing.type && tool !== 'select' && tool !== 'crop') {
+         const type = tool; // Use tool as the type, currentDrawing.type might be briefly unset
+        if (type === 'rect' && currentDrawing.width !== undefined && currentDrawing.height !== undefined) {
             let x = startPoint.x;
             let y = startPoint.y;
             let w = currentDrawing.width;
             let h = currentDrawing.height;
             if (w < 0) { x = startPoint.x + w; w = -w; }
             if (h < 0) { y = startPoint.y + h; h = -h; }
-            if (w > 0 || h > 0) {
-              finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x, y, width: w, height: h } as Annotation;
+            if (w > LINE_WIDTH || h > LINE_WIDTH) { // Avoid zero-size rects
+              finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x, y, width: w, height: h, color: newAnnotationColor } as Annotation;
             }
-        } else if (currentDrawing.type === 'circle' && currentDrawing.radius !== undefined && currentDrawing.radius > 0) {
-            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius } as Annotation;
-        } else if (currentDrawing.type === 'arrow' && currentDrawing.endX !== undefined && currentDrawing.endY !== undefined) {
-            if (startPoint.x !== currentDrawing.endX || startPoint.y !== currentDrawing.endY) {
-              finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY } as Annotation;
+        } else if (type === 'circle' && currentDrawing.radius !== undefined && currentDrawing.radius > LINE_WIDTH / 2) { // Avoid zero-size circles
+            finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius, color: newAnnotationColor } as Annotation;
+        } else if (type === 'arrow' && currentDrawing.endX !== undefined && currentDrawing.endY !== undefined) {
+            if (Math.abs(startPoint.x - currentDrawing.endX) > LINE_WIDTH || Math.abs(startPoint.y - currentDrawing.endY) > LINE_WIDTH) { // Avoid zero-length arrows
+              finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY, color: newAnnotationColor } as Annotation;
             }
         }
       }
@@ -318,10 +520,27 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       setStartPoint(null);
       setCurrentDrawing(null);
     };
+    
+    let canvasCursorClass = 'cursor-default';
+    if (tool) {
+      if (tool === 'select') {
+        if (isDragging) {
+          canvasCursorClass = 'fine:cursor-grabbing coarse:cursor-grabbing';
+        } else if (hoveredAnnotationId) {
+          canvasCursorClass = 'fine:cursor-grab coarse:cursor-pointer';
+        } else {
+          canvasCursorClass = 'fine:cursor-default coarse:cursor-default';
+        }
+      } else if (tool === 'text') {
+        canvasCursorClass = 'fine:cursor-text coarse:cursor-pointer';
+      } else if (tool === 'crop') {
+         canvasCursorClass = 'fine:cursor-crosshair coarse:cursor-pointer';
+      }
+       else { // Drawing tools
+        canvasCursorClass = 'fine:cursor-crosshair coarse:cursor-pointer';
+      }
+    }
 
-    const canvasCursorClass = tool
-        ? 'fine:cursor-crosshair coarse:cursor-pointer'
-        : 'cursor-default';
 
     return (
       <canvas
@@ -329,13 +548,18 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={(e) => {
+          if (isDrawing || isDragging) handleMouseUp(e); // Treat mouse leave as mouse up if drawing/dragging
+          setHoveredAnnotationId(null);
+        }}
+        onTouchStart={handleMouseDown as any} // Type assertion for touch events
+        onTouchMove={handleMouseMove as any}
+        onTouchEnd={handleMouseUp as any}
         className={cn('w-full h-full', canvasCursorClass)}
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'none' }} // Important for preventing scrolling on canvas interactions
       />
     );
   }
 );
 
 ScreenshotCanvas.displayName = 'ScreenshotCanvas';
-

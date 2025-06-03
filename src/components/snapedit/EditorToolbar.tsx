@@ -4,16 +4,16 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Crop, Square, Circle as CircleIcon, ArrowUpRight, Type, Download, Trash2, Undo2, Check, X, Palette, ClipboardCopy } from 'lucide-react';
+import { Crop, Square, Circle as CircleIcon, ArrowUpRight, Type, Download, Trash2, Undo2, Check, X, Palette, ClipboardCopy, MousePointer2, Eraser } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type Tool = 'crop' | 'rect' | 'circle' | 'arrow' | 'text';
+export type Tool = 'crop' | 'rect' | 'circle' | 'arrow' | 'text' | 'select';
 
 interface EditorToolbarProps {
   selectedTool: Tool | null;
   onSelectTool: (tool: Tool | null) => void;
   onDownload: () => void;
-  onClear: () => void;
+  onClearAll: () => void;
   onUndo: () => void;
   onCopyToClipboard: () => void;
   isCropping: boolean;
@@ -23,9 +23,12 @@ interface EditorToolbarProps {
   selectedColor: string;
   onSelectColor: (color: string) => void;
   availableColors: string[];
+  selectedAnnotationId: string | null;
+  onDeleteSelected: () => void;
 }
 
-const tools: { name: Tool; icon: React.ElementType; label: string }[] = [
+const toolsList: { name: Tool; icon: React.ElementType; label: string }[] = [
+  { name: 'select', icon: MousePointer2, label: 'Select/Move' },
   { name: 'crop', icon: Crop, label: 'Crop' },
   { name: 'rect', icon: Square, label: 'Rectangle' },
   { name: 'circle', icon: CircleIcon, label: 'Circle' },
@@ -39,7 +42,7 @@ export function EditorToolbar({
   selectedTool,
   onSelectTool,
   onDownload,
-  onClear,
+  onClearAll,
   onUndo,
   onCopyToClipboard,
   isCropping,
@@ -49,17 +52,19 @@ export function EditorToolbar({
   selectedColor,
   onSelectColor,
   availableColors,
+  selectedAnnotationId,
+  onDeleteSelected,
 }: EditorToolbarProps) {
 
   const handleToolClick = (toolName: Tool) => {
-    if (selectedTool === toolName) {
-      onSelectTool(null); 
+    if (selectedTool === toolName && toolName !== 'select') { // Allow select to be re-clicked without deselecting
+      onSelectTool(null);
     } else {
       onSelectTool(toolName);
     }
   };
   
-  const showColorPalette = selectedTool && drawingTools.includes(selectedTool);
+  const showColorPalette = selectedTool && drawingTools.includes(selectedTool) && !isCropping;
 
   return (
     <TooltipProvider>
@@ -67,7 +72,7 @@ export function EditorToolbar({
         <div className="flex flex-wrap gap-2 justify-center items-center">
           {!isCropping ? (
             <>
-              {tools.map((tool) => (
+              {toolsList.map((tool) => (
                 <Tooltip key={tool.name}>
                   <TooltipTrigger asChild>
                     <Button
@@ -96,11 +101,26 @@ export function EditorToolbar({
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={onClear} aria-label="Clear Canvas" className="w-12 h-12">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={onDeleteSelected} 
+                    aria-label="Delete Selected" 
+                    className="w-12 h-12"
+                    disabled={!selectedAnnotationId || selectedTool !== 'select'}
+                  >
                     <Trash2 className="w-6 h-6" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>Clear Annotations</p></TooltipContent>
+                <TooltipContent><p>Delete Selected Annotation</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={onClearAll} aria-label="Clear All Annotations" className="w-12 h-12">
+                    <Eraser className="w-6 h-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Clear All Annotations</p></TooltipContent>
               </Tooltip>
                <Tooltip>
                 <TooltipTrigger asChild>
@@ -158,12 +178,12 @@ export function EditorToolbar({
         <div
           className={cn(
             "w-full overflow-hidden transition-all duration-300 ease-in-out",
-            (showColorPalette && !isCropping)
+            showColorPalette
               ? "mt-2 pt-2 border-t border-border max-h-40 opacity-100"
               : "max-h-0 opacity-0"
           )}
         >
-          {(showColorPalette && !isCropping) && (
+          {showColorPalette && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
               <Palette className="w-5 h-5 mr-2 text-muted-foreground" />
               {availableColors.map((color) => (
