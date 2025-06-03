@@ -85,5 +85,11 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    function({ addVariant }) {
+      addVariant('coarse', '@media (pointer: coarse)');
+      addVariant('fine', '@media (pointer: fine)');
+    }
+  ],
 } satisfies Config;
