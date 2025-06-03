@@ -146,7 +146,7 @@ export function EditorWorkspace({
               }
           }}
           autoFocus
-          className="fixed z-50 p-2 border rounded shadow-lg bg-card w-48 min-h-[40px] resize-none overflow-hidden"
+          className="fixed z-50 p-2 border rounded shadow-lg bg-card w-auto max-w-[calc(100vw-2rem)] sm:w-48 min-h-[40px] resize-none overflow-hidden"
           style={{ left: `${textInput.x}px`, top: `${textInput.y}px`, color: currentAnnotationColor }}
           placeholder="Type text..."
         />
