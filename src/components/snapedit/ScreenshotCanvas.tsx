@@ -68,8 +68,9 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
         if (!tempCtx) return null;
         
+        // Source rect is from the original image, destination is (0,0) on new temp canvas
         tempCtx.drawImage(
-          image,
+          image, // Using the original image ensures we're cropping from the source
           rect.x, rect.y, rect.width, rect.height, 
           0, 0, rect.width, rect.height             
         );
@@ -87,12 +88,44 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
     const getMousePosition = (e: React.MouseEvent): Point => {
       const canvas = internalCanvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+    
+      const rect = canvas.getBoundingClientRect(); // Dimensions of the <canvas> element on screen
+    
+      // canvas.width and canvas.height are the bitmap resolution.
+      // If an image is loaded, these are image.width and image.height.
+      // If no image (placeholder), these are parent.clientWidth and parent.clientHeight (approx rect.width/height).
+      const bitmapWidth = canvas.width;
+      const bitmapHeight = canvas.height;
+    
+      const elementWidth = rect.width;   // CSS display width of the canvas element
+      const elementHeight = rect.height; // CSS display height of the canvas element
+    
+      // Calculate how the bitmap is scaled to fit within the element (object-contain behavior)
+      const scaleRatio = Math.min(elementWidth / bitmapWidth, elementHeight / bitmapHeight);
+      
+      // Dimensions of the bitmap as it's actually rendered on screen
+      const renderedBitmapWidth = bitmapWidth * scaleRatio;
+      const renderedBitmapHeight = bitmapHeight * scaleRatio;
+    
+      // Calculate the centering offsets (letterboxing)
+      const offsetX = (elementWidth - renderedBitmapWidth) / 2;
+      const offsetY = (elementHeight - renderedBitmapHeight) / 2;
+    
+      // Mouse position relative to the canvas element's top-left corner (CSS pixels)
+      const mouseXInElement = e.clientX - rect.left;
+      const mouseYInElement = e.clientY - rect.top;
+    
+      // Mouse position relative to the top-left of the *rendered bitmap content*
+      const mouseXOnRenderedBitmap = mouseXInElement - offsetX;
+      const mouseYOnRenderedBitmap = mouseYInElement - offsetY;
+    
+      // Scale these coordinates back to the original bitmap's resolution
+      const finalX = mouseXOnRenderedBitmap / scaleRatio;
+      const finalY = mouseYOnRenderedBitmap / scaleRatio;
+    
       return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
+        x: finalX,
+        y: finalY,
       };
     };
     
@@ -100,6 +133,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         const canvas = internalCanvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        // This returns coordinates relative to the canvas element's display box, unscaled.
+        // Used for positioning the HTML textarea.
         return {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
@@ -122,10 +157,13 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       } else {
         const parent = canvas.parentElement;
         if (parent) {
-            if(canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight){
-                canvas.width = parent.clientWidth;
-                canvas.height = parent.clientHeight;
-                setCanvasSize({width: parent.clientWidth, height: parent.clientHeight});
+            // For placeholder, set canvas bitmap to match its display size for 1:1 mapping
+            const displayWidth = parent.clientWidth;
+            const displayHeight = parent.clientHeight;
+            if(canvas.width !== displayWidth || canvas.height !== displayHeight){
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
+                setCanvasSize({width: displayWidth, height: displayHeight});
             }
         }
       }
@@ -133,6 +171,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (image) {
+        // Draw image to fill the canvas bitmap; browser handles scaling to display element
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       } else {
         ctx.fillStyle = 'hsl(var(--card))';
@@ -148,24 +187,23 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
       annotations.forEach(ann => drawAnnotation(ctx, ann));
       if (isDrawing && currentDrawing && startPoint) {
-        // Use newAnnotationColor for the preview drawing being created
         drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: newAnnotationColor } as Annotation, true);
       }
       
       if (tool === 'crop' && cropPreviewRect) {
-        ctx.strokeStyle = 'rgba(var(--primary-rgb), 0.8)'; 
+        ctx.strokeStyle = 'hsla(var(--primary-hsl), 0.8)'; 
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 6]);
         ctx.strokeRect(cropPreviewRect.x, cropPreviewRect.y, cropPreviewRect.width, cropPreviewRect.height);
         ctx.setLineDash([]);
       }
 
-    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize, newAnnotationColor]); // Added newAnnotationColor to dependencies
+    }, [image, annotations, isDrawing, currentDrawing, startPoint, tool, cropPreviewRect, canvasSize, newAnnotationColor]);
     
 
     const drawAnnotation = (ctx: CanvasRenderingContext2D, ann: Annotation, isPreview = false) => {
       ctx.strokeStyle = ann.color;
-      ctx.fillStyle = ann.color; // For text and potentially filled shapes in future
+      ctx.fillStyle = ann.color; 
       ctx.lineWidth = LINE_WIDTH;
 
       switch (ann.type) {
@@ -175,10 +213,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
           }
           break;
         case 'circle':
-          if (ann.radius !== undefined) {
+          if (ann.radius !== undefined && ann.radius > 0) { // Ensure radius is positive
             ctx.beginPath();
-            // For circle, x,y is center. If drawing from corner, adjust.
-            // currentDrawing.x and currentDrawing.y are set to be the center in handleMouseMove
             ctx.arc(ann.x, ann.y, ann.radius, 0, 2 * Math.PI);
             ctx.stroke();
           }
@@ -199,7 +235,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         case 'text':
           if (ann.text) {
             ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
-            // ann.color already set by drawAnnotation's fillStyle
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             ctx.fillText(ann.text, ann.x, ann.y);
@@ -209,7 +244,10 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
     };
     
     const handleMouseDown = (e: React.MouseEvent) => {
-      if (!image || !tool) return;
+      // No drawing if no image and tool is not text (text can be added on empty canvas)
+      if (!image && tool !== 'text' && tool !== null) return; // Allow text tool on empty canvas
+      if (!tool) return;
+
       const point = getMousePosition(e);
       
       if (tool === 'text') {
@@ -220,15 +258,15 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 
       setIsDrawing(true);
       setStartPoint(point);
-      // Initialize currentDrawing with newAnnotationColor
       setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: newAnnotationColor });
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-      if (!isDrawing || !startPoint || !tool || !image) return;
+      if (!isDrawing || !startPoint || !tool ) return; // No !image check needed here, covered by isDrawing
       const point = getMousePosition(e);
 
       if (tool === 'crop') {
+        if (!image) return; // Crop only makes sense with an image
         const x = Math.min(startPoint.x, point.x);
         const y = Math.min(startPoint.y, point.y);
         const width = Math.abs(startPoint.x - point.x);
@@ -237,7 +275,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         return;
       }
 
-      // currentDrawing already has color from handleMouseDown
       const current: Partial<Annotation> = { ...currentDrawing }; 
       switch (tool) {
         case 'rect':
@@ -247,6 +284,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         case 'circle':
           const dx = point.x - startPoint.x;
           const dy = point.y - startPoint.y;
+          // Radius is half the distance between start and current point
+          // Center is midpoint between start and current point
           current.radius = Math.sqrt(dx * dx + dy * dy) / 2;
           current.x = startPoint.x + dx / 2; 
           current.y = startPoint.y + dy / 2;
@@ -260,7 +299,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
     };
 
     const handleMouseUp = () => {
-      if (!isDrawing || !startPoint || !tool || !image) {
+      if (!isDrawing || !startPoint || !tool ) { // No !image check needed here
         setIsDrawing(false);
         setStartPoint(null);
         setCurrentDrawing(null);
@@ -268,26 +307,34 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       }
       
       if (tool === 'crop') {
+        if (!image) return; // Crop only makes sense with an image
         setIsDrawing(false);
         setStartPoint(null);
+        // cropPreviewRect is already set by mouseMove, no new annotation added here
         return;
       }
 
       let finalAnnotation: Annotation | null = null;
       if (currentDrawing) {
-        // The color is already set in currentDrawing from handleMouseDown
         if (currentDrawing.type === 'rect' && currentDrawing.width !== undefined && currentDrawing.height !== undefined) {
             let x = startPoint.x;
             let y = startPoint.y;
             let w = currentDrawing.width;
             let h = currentDrawing.height;
+            // Ensure width and height are positive, adjust x/y accordingly
             if (w < 0) { x = startPoint.x + w; w = -w; }
             if (h < 0) { y = startPoint.y + h; h = -h; }
-            finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x, y, width: w, height: h } as Annotation;
-        } else if (currentDrawing.type === 'circle' && currentDrawing.radius !== undefined) {
+            if (w > 0 || h > 0) { // Only add if it has some dimension
+              finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x, y, width: w, height: h } as Annotation;
+            }
+        } else if (currentDrawing.type === 'circle' && currentDrawing.radius !== undefined && currentDrawing.radius > 0) {
+            // currentDrawing.x and currentDrawing.y are already the center
             finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius } as Annotation;
         } else if (currentDrawing.type === 'arrow' && currentDrawing.endX !== undefined && currentDrawing.endY !== undefined) {
-             finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY } as Annotation;
+            // Only add if start and end points are different (arrow has length)
+            if (startPoint.x !== currentDrawing.endX || startPoint.y !== currentDrawing.endY) {
+              finalAnnotation = { ...currentDrawing, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY } as Annotation;
+            }
         }
       }
 
@@ -307,8 +354,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp} 
-        className="w-full h-full object-contain cursor-crosshair"
+        onMouseLeave={handleMouseUp} // End drawing if mouse leaves canvas
+        className="w-full h-full cursor-crosshair" // Removed object-contain
         style={{ touchAction: 'none' }} 
       />
     );
@@ -316,4 +363,3 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 );
 
 ScreenshotCanvas.displayName = 'ScreenshotCanvas';
-
