@@ -26,21 +26,21 @@ export interface CropRect {
   height: number;
 }
 
-const LOCAL_STORAGE_INTRO_KEY = 'snapEditIntroShown_v1'; // Increment if dialog content changes significantly
+const LOCAL_STORAGE_INTRO_KEY = 'snapEditIntroShown_v1';
 
 export const ANNOTATION_COLORS: string[] = [
-  'hsl(var(--accent))',      // Default Accent Blue
-  'hsl(0, 70%, 60%)',        // Red
-  'hsl(39, 90%, 60%)',       // Orange
-  'hsl(50, 80%, 55%)',       // Yellow
-  'hsl(120, 50%, 50%)',      // Green
-  'hsl(170, 60%, 50%)',      // Teal
-  'hsl(240, 60%, 70%)',      // Indigo
-  'hsl(300, 60%, 65%)',      // Pink/Magenta
-  'hsl(var(--foreground))',  // Default Text Color (Dark Gray/Black)
-  'hsl(0, 0%, 50%)',         // Medium Gray
-  'hsl(0, 0%, 90%)',         // Light Gray
-  'hsl(200, 70%, 60%)',      // Another Blue
+  'hsl(var(--accent))',
+  'hsl(0, 70%, 60%)',
+  'hsl(39, 90%, 60%)',
+  'hsl(50, 80%, 55%)',
+  'hsl(120, 50%, 50%)',
+  'hsl(170, 60%, 50%)',
+  'hsl(240, 60%, 70%)',
+  'hsl(300, 60%, 65%)',
+  'hsl(var(--foreground))',
+  'hsl(0, 0%, 50%)',
+  'hsl(0, 0%, 90%)',
+  'hsl(200, 70%, 60%)',
 ];
 
 export default function SnapEditApp() {
@@ -55,8 +55,8 @@ export default function SnapEditApp() {
   const [cropPreviewRect, setCropPreviewRect] = useState<CropRect | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   const [showInfoDialog, setShowInfoDialog] = useState(false);
-  const [isHistoryUpdatePending, setIsHistoryUpdatePending] = useState(false);
-
+  
+  const preDragAnnotationsRef = useRef<Annotation[] | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenshotCanvasRef = useRef<{ performCrop: (rect: CropRect) => Promise<HTMLImageElement | null>, getCanvas: () => HTMLCanvasElement | null }>(null);
@@ -78,10 +78,8 @@ export default function SnapEditApp() {
     }
   };
 
-  const updateHistory = useCallback((newAnnotations: Annotation[], isFinalUpdate = true) => {
-    if (isFinalUpdate) {
-        setAnnotationHistory(prevHistory => [...prevHistory, annotations]); // current annotations before update
-    }
+  const updateHistory = useCallback((newAnnotations: Annotation[]) => {
+    setAnnotationHistory(prevHistory => [...prevHistory, annotations]); 
     setAnnotations(newAnnotations);
   }, [annotations]);
 
@@ -201,11 +199,9 @@ export default function SnapEditApp() {
   };
   
   const handleClearAllAnnotations = () => {
-    if (image && annotations.length > 0) { // Only update history if there were annotations
+    if (image && annotations.length > 0) {
        updateHistory([]);
     } else if (annotations.length === 0 && annotationHistory.length > 0) {
-       // If canvas is already empty but history exists (e.g. after undoing to empty state)
-       // still allow "clearing" to effectively reset history from that point.
        updateHistory([]);
     }
     setCropPreviewRect(null);
@@ -219,7 +215,7 @@ export default function SnapEditApp() {
       const previousAnnotations = annotationHistory[annotationHistory.length - 1];
       setAnnotations(previousAnnotations);
       setAnnotationHistory(prevHistory => prevHistory.slice(0, -1));
-      setSelectedAnnotationId(null); // Deselect on undo
+      setSelectedAnnotationId(null);
       toast({ title: "Undo Successful" });
     } else {
       toast({ title: "Nothing to Undo", description: "No previous actions found." });
@@ -228,12 +224,12 @@ export default function SnapEditApp() {
 
   const addAnnotation = useCallback((annotation: Annotation) => {
     updateHistory([...annotations, annotation]);
-    setSelectedAnnotationId(null); // Deselect after adding new
+    setSelectedAnnotationId(null); 
   }, [annotations, updateHistory]);
 
   const handleRequestTextInput = useCallback((point: Point, canvasPosition: {x: number, y: number}) => {
     if (canvasRef.current) {
-      setSelectedAnnotationId(null); // Deselect when starting text input
+      setSelectedAnnotationId(null); 
       const canvasRect = canvasRef.current.getBoundingClientRect();
       setTextInput({
         x: canvasPosition.x + canvasRect.left,
@@ -258,7 +254,7 @@ export default function SnapEditApp() {
       });
     }
     setTextInput({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
-    setSelectedTool(null); // De-select text tool after input
+    setSelectedTool(null); 
   };
 
   const handleTextInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -279,8 +275,8 @@ export default function SnapEditApp() {
         const croppedImage = await screenshotCanvasRef.current.performCrop(cropPreviewRect);
         if (croppedImage) {
           setImage(croppedImage);
-          setAnnotations([]); // Clear annotations for the new image
-          setAnnotationHistory([]); // Clear history for the new image
+          setAnnotations([]); 
+          setAnnotationHistory([]); 
           setCropPreviewRect(null);
           setSelectedTool(null);
           setSelectedAnnotationId(null);
@@ -300,62 +296,48 @@ export default function SnapEditApp() {
     setSelectedTool(tool);
     if (tool !== 'crop') {
         setIsCropping(false);
-        // setCropPreviewRect(null); // Keep crop preview if user switches away and back
     }
     if (tool === 'crop') {
         setIsCropping(true);
         setSelectedAnnotationId(null);
     } else if (tool !== 'select') {
-        setSelectedAnnotationId(null); // Deselect annotation if switching to a drawing tool
+        setSelectedAnnotationId(null); 
     }
   };
   
   useEffect(() => {
     if(selectedTool === 'crop') {
       setIsCropping(true);
-    } else if (isCropping && selectedTool !== 'crop') {
-      // Don't immediately hide crop UI if switching away temporarily
-      // setIsCropping(false); 
-      // setCropPreviewRect(null);
     }
-  }, [selectedTool, isCropping]);
+  }, [selectedTool]);
 
   const handleSelectAnnotation = useCallback((id: string | null) => {
     if (selectedTool === 'select') {
       setSelectedAnnotationId(id);
-    } else if (id !== null) { // If a drawing tool is active and canvas tries to select (e.g. on new shape creation)
-        setSelectedAnnotationId(null); // Ensure deselection
+    } else if (id !== null) { 
+        setSelectedAnnotationId(null); 
     }
   }, [selectedTool]);
 
   const handleUpdateAnnotation = useCallback((updatedAnnotation: Annotation) => {
-    const newAnnotations = annotations.map(ann => ann.id === updatedAnnotation.id ? updatedAnnotation : ann);
-    setAnnotations(newAnnotations); // Update live, history entry on mouse up
-    setIsHistoryUpdatePending(true); // Mark that a history update is needed on mouseup/dragend
+    setAnnotations(prevAnnotations => 
+      prevAnnotations.map(ann => ann.id === updatedAnnotation.id ? updatedAnnotation : ann)
+    );
+  }, []);
+  
+  const handleDragStart = useCallback(() => {
+    preDragAnnotationsRef.current = [...annotations]; // Shallow copy current annotations
   }, [annotations]);
 
   const handleEndAnnotationHistoryEntry = useCallback(() => {
-    if (isHistoryUpdatePending) {
-        setAnnotationHistory(prev => [...prev, annotations.filter(a => a.id !== selectedAnnotationId), ...annotations.filter(a => a.id === selectedAnnotationId)]); // A bit complex, essentially snapshotting the current state for undo
-        // A simpler history update: just push the current state of `annotations`
-        // This means an undo of a move will revert all annotations to their state before the move started.
-        setAnnotationHistory(prev => {
-            // Find the previous state of the moved annotation to form a "before" state for history
-            const lastHistoryState = prev.length > 0 ? prev[prev.length - 1] : [];
-            return [...prev, lastHistoryState]; // This is not quite right.
-        });
-        // Correct approach for history on drag end:
-        // The `annotations` state is already updated during drag.
-        // We need to push the state *before* the drag started into history.
-        // This is tricky with live updates. The `updateHistory` callback is better suited for discrete actions.
-        // For now, let's simplify: the history will capture the state *after* the drag.
-        // A better way is to snapshot `annotations` on drag start, and push that to history when drag ends with the new state.
-
-        // Simplest history update for now (captures state AFTER modification):
-        setAnnotationHistory(prevHistory => [...prevHistory, annotations]);
-        setIsHistoryUpdatePending(false);
+    if (preDragAnnotationsRef.current) {
+      // Only add to history if annotations actually changed during the drag
+      if (JSON.stringify(preDragAnnotationsRef.current) !== JSON.stringify(annotations)) {
+         setAnnotationHistory(prevHistory => [...prevHistory, preDragAnnotationsRef.current!]);
+      }
     }
-  }, [isHistoryUpdatePending, annotations, selectedAnnotationId]);
+    preDragAnnotationsRef.current = null;
+  }, [annotations, setAnnotationHistory]);
 
 
   const handleDeleteSelectedAnnotation = useCallback(() => {
@@ -473,10 +455,11 @@ export default function SnapEditApp() {
               selectedAnnotationId={selectedAnnotationId}
               onSelectAnnotation={handleSelectAnnotation}
               onUpdateAnnotation={handleUpdateAnnotation}
+              onDragStart={handleDragStart}
               onEndAnnotationHistoryEntry={handleEndAnnotationHistoryEntry}
             />
           ) : (
-            <div className="text-center p-10 pointer-events-none"> {/* pointer-events-none on text to allow drop */}
+            <div className="text-center p-10 pointer-events-none"> 
               <ImagePlus strokeWidth={1} className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
               <h2 className="text-xl font-semibold text-foreground mb-2">No Image Captured</h2>
               <p className="text-muted-foreground">Click "Capture Screenshot" above, or drag and drop an image here.</p>
@@ -489,7 +472,7 @@ export default function SnapEditApp() {
             value={textInput.value}
             onChange={(e) => setTextInput(prev => ({ ...prev, value: e.target.value }))}
             onKeyDown={handleTextInputKeyDown}
-            onBlur={() => { // Confirm on blur unless value is empty
+            onBlur={() => { 
                 if (textInput.value.trim() !== '') {
                     handleTextInputConfirm();
                 } else {
@@ -544,3 +527,5 @@ export default function SnapEditApp() {
     </div>
   );
 }
+
+    

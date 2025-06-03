@@ -13,7 +13,7 @@ export interface Point {
 
 export interface Annotation {
   id: string;
-  type: Tool; // Note: 'select' and 'crop' are tools, not annotation types. Actual type will be rect, circle etc.
+  type: Tool; 
   x: number;
   y: number;
   width?: number;
@@ -38,22 +38,23 @@ interface ScreenshotCanvasProps {
   selectedAnnotationId: string | null;
   onSelectAnnotation: (id: string | null) => void;
   onUpdateAnnotation: (annotation: Annotation) => void;
-  onEndAnnotationHistoryEntry: () => void; // Callback to finalize history entry after drag
+  onDragStart: () => void; // Callback for when a drag operation starts
+  onEndAnnotationHistoryEntry: () => void; 
 }
 
 const LINE_WIDTH = 3;
 const FONT_SIZE = 16;
 const FONT_FAMILY = 'Inter, sans-serif';
-const SELECTION_PADDING = 5; // Padding for hit testing text and arrows
+const SELECTION_PADDING = 5; 
 
 export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Promise<HTMLImageElement | null>, getCanvas: () => HTMLCanvasElement | null }, ScreenshotCanvasProps>(
-  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect, newAnnotationColor, selectedAnnotationId, onSelectAnnotation, onUpdateAnnotation, onEndAnnotationHistoryEntry }, ref) => {
+  ({ image, tool, annotations, onAddAnnotation, onRequestTextInput, externalCanvasRef, cropPreviewRect, onSetCropPreviewRect, newAnnotationColor, selectedAnnotationId, onSelectAnnotation, onUpdateAnnotation, onDragStart, onEndAnnotationHistoryEntry }, ref) => {
     const internalCanvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false); // For new annotations
-    const [isDragging, setIsDragging] = useState(false); // For moving existing annotations
+    const [isDrawing, setIsDrawing] = useState(false); 
+    const [isDragging, setIsDragging] = useState(false); 
     const [startPoint, setStartPoint] = useState<Point | null>(null);
-    const [currentDrawing, setCurrentDrawing] = useState<Partial<Annotation> | null>(null); // For new annotations
-    const [draggedAnnotationStartPos, setDraggedAnnotationStartPos] = useState<Point | null>(null); // Original position of annotation being dragged
+    const [currentDrawing, setCurrentDrawing] = useState<Partial<Annotation> | null>(null); 
+    const [draggedAnnotationStartPos, setDraggedAnnotationStartPos] = useState<Point | null>(null); 
     const [canvasSize, setCanvasSize] = useState<{width: number, height: number}>({width: 800, height: 600});
     const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
 
@@ -101,27 +102,25 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       const bitmapWidth = canvas.width;
       const bitmapHeight = canvas.height;
       
-      // Calculate scale and offset if image is letterboxed/pillarboxed
       let scale = 1;
       let offsetX = 0;
       let offsetY = 0;
 
-      if (image) { // Only calculate scale/offset if there's an image
+      if (image) { 
         const canvasAspect = rect.width / rect.height;
-        const imageAspect = bitmapWidth / bitmapHeight; // Assuming canvas bitmap matches image dimensions
+        const imageAspect = bitmapWidth / bitmapHeight; 
 
-        if (canvasAspect > imageAspect) { // Canvas is wider than image (letterboxed)
+        if (canvasAspect > imageAspect) { 
             scale = rect.height / bitmapHeight;
             offsetX = (rect.width - bitmapWidth * scale) / 2;
-        } else { // Canvas is taller than image (pillarboxed) or same aspect
+        } else { 
             scale = rect.width / bitmapWidth;
             offsetY = (rect.height - bitmapHeight * scale) / 2;
         }
-      } else { // No image, use direct mapping for placeholder text
+      } else { 
          scale = Math.min(rect.width / bitmapWidth, rect.height / bitmapHeight);
          offsetX = (rect.width - bitmapWidth * scale) / 2;
          offsetY = (rect.height - bitmapHeight * scale) / 2;
-
       }
       
       const clientX = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
@@ -174,16 +173,14 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             break;
           case 'arrow':
             if (ann.endX !== undefined && ann.endY !== undefined) {
-              // Check bounding box of arrow for coarse check
               const minX = Math.min(ann.x, ann.endX) - SELECTION_PADDING;
               const maxX = Math.max(ann.x, ann.endX) + SELECTION_PADDING;
               const minY = Math.min(ann.y, ann.endY) - SELECTION_PADDING;
               const maxY = Math.max(ann.y, ann.endY) + SELECTION_PADDING;
               if (point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) continue;
 
-              // Distance from point to line segment
               const l2 = (ann.endX - ann.x) ** 2 + (ann.endY - ann.y) ** 2;
-              if (l2 === 0) { // Start and end points are the same
+              if (l2 === 0) { 
                  if (Math.sqrt((point.x - ann.x)**2 + (point.y - ann.y)**2) < SELECTION_PADDING + LINE_WIDTH) return ann;
                  continue;
               }
@@ -199,7 +196,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             if (ann.text) {
               ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
               const textMetrics = ctx.measureText(ann.text);
-              // Approximate height, actualBoundingBoxAscent/Descent are better but might not be available
               const textHeight = FONT_SIZE * 1.2; 
               if (point.x >= ann.x - SELECTION_PADDING && point.x <= ann.x + textMetrics.width + SELECTION_PADDING &&
                   point.y >= ann.y - SELECTION_PADDING && point.y <= ann.y + textHeight + SELECTION_PADDING) return ann;
@@ -226,7 +222,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       } else {
         const parent = canvas.parentElement;
         if (parent) {
-            const displayWidth = Math.max(300, parent.clientWidth); // Ensure minimum size
+            const displayWidth = Math.max(300, parent.clientWidth); 
             const displayHeight = Math.max(200, parent.clientHeight);
             if(canvas.width !== displayWidth || canvas.height !== displayHeight){
                 canvas.width = displayWidth;
@@ -255,7 +251,6 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       annotations.forEach(ann => drawAnnotation(ctx, ann, ann.id === selectedAnnotationId));
       
       if (isDrawing && currentDrawing && startPoint && currentDrawing.type !== 'select' && currentDrawing.type !== 'crop') {
-        // This type assertion is okay because we ensure type is not 'select' or 'crop'
         drawAnnotation(ctx, { ...currentDrawing, x:startPoint.x, y:startPoint.y, id:'temp', color: newAnnotationColor } as Annotation, false, true);
       }
 
@@ -282,7 +277,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.strokeRect(ann.x, ann.y, ann.width, ann.height);
              if (isSelected && !isPreview) {
               ctx.setLineDash([4, 4]);
-              ctx.strokeStyle = 'hsl(var(--ring))'; // Use ring color for selection
+              ctx.strokeStyle = 'hsl(var(--ring))'; 
               ctx.lineWidth = 1;
               ctx.strokeRect(ann.x - SELECTION_PADDING, ann.y - SELECTION_PADDING, ann.width + SELECTION_PADDING*2, ann.height + SELECTION_PADDING*2);
               ctx.setLineDash([]);
@@ -337,7 +332,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             ctx.fillText(ann.text, ann.x, ann.y);
              if (isSelected && !isPreview) {
               const textMetrics = ctx.measureText(ann.text);
-              const textHeight = FONT_SIZE * 1.2; // Approximate
+              const textHeight = FONT_SIZE * 1.2; 
               ctx.setLineDash([3, 3]);
               ctx.strokeStyle = 'hsl(var(--ring))';
               ctx.lineWidth = 1;
@@ -350,7 +345,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-      e.preventDefault(); // Prevent text selection, etc.
+      e.preventDefault(); 
       if (!tool) return;
       if (!image && tool !== 'text' && tool !== 'select' && tool !== null) return;
 
@@ -366,27 +361,26 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         if (clickedAnnotation) {
           onSelectAnnotation(clickedAnnotation.id);
           setIsDragging(true);
-          setStartPoint(point); // Mouse start point for dragging
-          setDraggedAnnotationStartPos({ x: clickedAnnotation.x, y: clickedAnnotation.y }); // Annotation's original position
+          setStartPoint(point); 
+          setDraggedAnnotationStartPos({ x: clickedAnnotation.x, y: clickedAnnotation.y }); 
+          onDragStart(); // Notify app that drag has started for history purposes
         } else {
           onSelectAnnotation(null);
         }
         return;
       }
       
-      // For all other tools (drawing, crop)
-      onSelectAnnotation(null); // Deselect any annotation if starting a new drawing/crop
+      onSelectAnnotation(null); 
       setIsDrawing(true);
       setStartPoint(point);
 
       if (tool === 'text') {
         const canvasClickPos = getCanvasClickPosition(e);
         onRequestTextInput(point, canvasClickPos);
-        setIsDrawing(false); // Text input handles its own logic
+        setIsDrawing(false); 
         return;
       }
       
-      // Ensure currentDrawing.type is a valid Annotation['type']
       if (tool !== 'crop' && tool !== 'select') {
         setCurrentDrawing({ type: tool, x: point.x, y: point.y, color: newAnnotationColor });
       }
@@ -422,14 +416,13 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
           }
           onUpdateAnnotation(updatedAnn);
 
-        } else { // Not dragging, just hovering
+        } else { 
            const ann = getAnnotationAtPoint(point, ctx);
            setHoveredAnnotationId(ann ? ann.id : null);
         }
         return;
       }
       
-      // Drawing new shape or cropping
       if (!isDrawing || !startPoint ) return;
 
       if (tool === 'crop') {
@@ -467,7 +460,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       e.preventDefault();
       if (tool === 'select') {
         if (isDragging) {
-            onEndAnnotationHistoryEntry(); // Finalize history after drag
+            onEndAnnotationHistoryEntry(); 
         }
         setIsDragging(false);
         setStartPoint(null);
@@ -486,13 +479,12 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         if (!image) return;
         setIsDrawing(false);
         setStartPoint(null);
-        // Crop preview is already set, SnapEditApp handles confirmation
         return;
       }
 
       let finalAnnotation: Annotation | null = null;
       if (currentDrawing && currentDrawing.type && tool !== 'select' && tool !== 'crop') {
-         const type = tool; // Use tool as the type, currentDrawing.type might be briefly unset
+         const type = tool; 
         if (type === 'rect' && currentDrawing.width !== undefined && currentDrawing.height !== undefined) {
             let x = startPoint.x;
             let y = startPoint.y;
@@ -500,13 +492,13 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
             let h = currentDrawing.height;
             if (w < 0) { x = startPoint.x + w; w = -w; }
             if (h < 0) { y = startPoint.y + h; h = -h; }
-            if (w > LINE_WIDTH || h > LINE_WIDTH) { // Avoid zero-size rects
+            if (w > LINE_WIDTH || h > LINE_WIDTH) { 
               finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x, y, width: w, height: h, color: newAnnotationColor } as Annotation;
             }
-        } else if (type === 'circle' && currentDrawing.radius !== undefined && currentDrawing.radius > LINE_WIDTH / 2) { // Avoid zero-size circles
+        } else if (type === 'circle' && currentDrawing.radius !== undefined && currentDrawing.radius > LINE_WIDTH / 2) { 
             finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x: currentDrawing.x!, y: currentDrawing.y!, radius: currentDrawing.radius, color: newAnnotationColor } as Annotation;
         } else if (type === 'arrow' && currentDrawing.endX !== undefined && currentDrawing.endY !== undefined) {
-            if (Math.abs(startPoint.x - currentDrawing.endX) > LINE_WIDTH || Math.abs(startPoint.y - currentDrawing.endY) > LINE_WIDTH) { // Avoid zero-length arrows
+            if (Math.abs(startPoint.x - currentDrawing.endX) > LINE_WIDTH || Math.abs(startPoint.y - currentDrawing.endY) > LINE_WIDTH) { 
               finalAnnotation = { ...currentDrawing, type, id: Date.now().toString(), x: startPoint.x, y: startPoint.y, endX: currentDrawing.endX, endY: currentDrawing.endY, color: newAnnotationColor } as Annotation;
             }
         }
@@ -536,7 +528,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
       } else if (tool === 'crop') {
          canvasCursorClass = 'fine:cursor-crosshair coarse:cursor-pointer';
       }
-       else { // Drawing tools
+       else { 
         canvasCursorClass = 'fine:cursor-crosshair coarse:cursor-pointer';
       }
     }
@@ -549,17 +541,20 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={(e) => {
-          if (isDrawing || isDragging) handleMouseUp(e); // Treat mouse leave as mouse up if drawing/dragging
+          if (isDrawing || isDragging) handleMouseUp(e); 
           setHoveredAnnotationId(null);
         }}
-        onTouchStart={handleMouseDown as any} // Type assertion for touch events
+        onTouchStart={handleMouseDown as any} 
         onTouchMove={handleMouseMove as any}
         onTouchEnd={handleMouseUp as any}
         className={cn('w-full h-full', canvasCursorClass)}
-        style={{ touchAction: 'none' }} // Important for preventing scrolling on canvas interactions
+        style={{ touchAction: 'none' }} 
       />
     );
   }
 );
 
 ScreenshotCanvas.displayName = 'ScreenshotCanvas';
+
+
+    
