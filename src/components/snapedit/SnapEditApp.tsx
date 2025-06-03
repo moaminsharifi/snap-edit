@@ -2,10 +2,8 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { EditorToolbar, Tool } from '@/components/snapedit/EditorToolbar';
-import { ScreenshotCanvas, Annotation, Point } from '@/components/snapedit/ScreenshotCanvas';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { type Tool } from '@/components/snapedit/EditorToolbar';
+import { type Annotation, type Point } from '@/components/snapedit/ScreenshotCanvas';
 import { useToast } from '@/hooks/use-toast';
 import { saveAs } from 'file-saver';
 import {
@@ -17,7 +15,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Github, ExternalLink, ImagePlus } from 'lucide-react';
+
+import { AppHeader } from './AppHeader';
+import { AppFooter } from './AppFooter';
+import { EditorWorkspace } from './EditorWorkspace';
+
 
 export interface CropRect {
   x: number;
@@ -139,9 +141,10 @@ export default function SnapEditApp() {
           try {
             if (!navigator.clipboard || !navigator.clipboard.write) {
               const dataUrl = currentCanvas.toDataURL('image/png');
+              // Fallback for browsers/contexts without navigator.clipboard.write (e.g. http, some webviews)
               const success = await new Promise<boolean>(resolve => {
                 const textarea = document.createElement('textarea');
-                textarea.value = dataUrl; 
+                textarea.value = dataUrl; // Not ideal for binary data, but a common fallback
                 document.body.appendChild(textarea);
                 textarea.select();
                 try {
@@ -160,13 +163,14 @@ export default function SnapEditApp() {
               }
               return; 
             }
+            // Modern clipboard API
             const clipboardItem = new ClipboardItem({ 'image/png': blob });
             await navigator.clipboard.write([clipboardItem]);
             toast({ title: "Copied to Clipboard!", description: "Image copied successfully." });
           } catch (err) {
             console.error("Error copying to clipboard: ", err);
             let message = "Could not copy image to clipboard.";
-            if (err instanceof Error && (err.message.includes("Clipboard API not available") || err.message.includes("document.execCommand(\'copy\') was not successful"))) {
+            if (err instanceof Error && (err.message.includes("Clipboard API not available") || err.message.includes("document.execCommand('copy') was not successful"))) {
                 message = "Clipboard API is not available or failed in this browser/context. Try downloading instead.";
             } else if (err instanceof Error && err.message.toLowerCase().includes("permission denied")) {
                 message = "Clipboard permission denied. Please allow clipboard access in your browser settings.";
@@ -202,7 +206,7 @@ export default function SnapEditApp() {
     if (image && annotations.length > 0) {
        updateHistory([]);
     } else if (annotations.length === 0 && annotationHistory.length > 0) {
-       updateHistory([]);
+       updateHistory([]); // Clear history if annotations were already empty but history existed
     }
     setCropPreviewRect(null);
     setSelectedTool(null);
@@ -215,7 +219,7 @@ export default function SnapEditApp() {
       const previousAnnotations = annotationHistory[annotationHistory.length - 1];
       setAnnotations(previousAnnotations);
       setAnnotationHistory(prevHistory => prevHistory.slice(0, -1));
-      setSelectedAnnotationId(null);
+      setSelectedAnnotationId(null); // Deselect on undo
       toast({ title: "Undo Successful" });
     } else {
       toast({ title: "Nothing to Undo", description: "No previous actions found." });
@@ -228,14 +232,14 @@ export default function SnapEditApp() {
   }, [annotations, updateHistory]);
 
   const handleRequestTextInput = useCallback((point: Point, canvasPosition: {x: number, y: number}) => {
-    if (canvasRef.current) {
+    if (canvasRef.current) { // Check if canvasRef.current is available
       setSelectedAnnotationId(null); 
       const canvasRect = canvasRef.current.getBoundingClientRect();
       setTextInput({
-        x: canvasPosition.x + canvasRect.left,
-        y: canvasPosition.y + canvasRect.top,
-        canvasRelativeX: point.x,
-        canvasRelativeY: point.y,
+        x: canvasPosition.x + canvasRect.left, // Position relative to viewport
+        y: canvasPosition.y + canvasRect.top,  // Position relative to viewport
+        canvasRelativeX: point.x, // Position relative to canvas bitmap
+        canvasRelativeY: point.y, // Position relative to canvas bitmap
         value: '',
         visible: true
       });
@@ -292,6 +296,12 @@ export default function SnapEditApp() {
     }
   };
 
+  const handleCancelCrop = () => {
+    setCropPreviewRect(null);
+    setIsCropping(false);
+    setSelectedTool(null);
+  };
+
   const handleSelectTool = (tool: Tool | null) => {
     setSelectedTool(tool);
     if (tool !== 'crop') {
@@ -326,12 +336,11 @@ export default function SnapEditApp() {
   }, []);
   
   const handleDragStart = useCallback(() => {
-    preDragAnnotationsRef.current = [...annotations]; // Shallow copy current annotations
+    preDragAnnotationsRef.current = [...annotations]; 
   }, [annotations]);
 
   const handleEndAnnotationHistoryEntry = useCallback(() => {
     if (preDragAnnotationsRef.current) {
-      // Only add to history if annotations actually changed during the drag
       if (JSON.stringify(preDragAnnotationsRef.current) !== JSON.stringify(annotations)) {
          setAnnotationHistory(prevHistory => [...prevHistory, preDragAnnotationsRef.current!]);
       }
@@ -401,131 +410,44 @@ export default function SnapEditApp() {
         </AlertDialog>
       )}
 
-      <header className="container mx-auto p-4 border-b border-border shadow-sm bg-card sticky top-0 z-50">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-headline font-semibold text-primary">SnapEdit</h1>
-          <Button onClick={handleCaptureScreenshot} variant="default" size="lg">
-            Capture Screenshot
-          </Button>
-        </div>
-      </header>
+      <AppHeader onCaptureScreenshot={handleCaptureScreenshot} />
 
-      <main className="flex-grow container mx-auto p-4 md:p-6 space-y-4 flex flex-col items-center">
-        {image && (
-          <EditorToolbar
-            selectedTool={selectedTool}
-            onSelectTool={handleSelectTool}
-            onDownload={handleDownload}
-            onClearAll={handleClearAllAnnotations}
-            onUndo={handleUndo}
-            onCopyToClipboard={handleCopyToClipboard}
-            isCropping={isCropping}
-            hasCropSelection={!!cropPreviewRect}
-            onConfirmCrop={handleConfirmCrop}
-            onCancelCrop={() => {
-              setCropPreviewRect(null);
-              setIsCropping(false);
-              setSelectedTool(null);
-            }}
-            selectedColor={currentAnnotationColor}
-            onSelectColor={setCurrentAnnotationColor}
-            availableColors={ANNOTATION_COLORS}
-            selectedAnnotationId={selectedAnnotationId}
-            onDeleteSelected={handleDeleteSelectedAnnotation}
-          />
-        )}
-
-        <div 
-          className={`w-full max-w-5xl aspect-[16/9] bg-card rounded-lg shadow-xl overflow-hidden border border-border ${image ? '' : 'flex items-center justify-center'}`}
-          onDrop={handleFileDrop}
-          onDragOver={handleDragOver}
-        >
-          {image ? (
-            <ScreenshotCanvas
-              ref={screenshotCanvasRef}
-              externalCanvasRef={canvasRef}
-              image={image}
-              tool={selectedTool}
-              annotations={annotations}
-              onAddAnnotation={addAnnotation}
-              onRequestTextInput={handleRequestTextInput}
-              cropPreviewRect={cropPreviewRect}
-              onSetCropPreviewRect={setCropPreviewRect}
-              newAnnotationColor={currentAnnotationColor}
-              selectedAnnotationId={selectedAnnotationId}
-              onSelectAnnotation={handleSelectAnnotation}
-              onUpdateAnnotation={handleUpdateAnnotation}
-              onDragStart={handleDragStart}
-              onEndAnnotationHistoryEntry={handleEndAnnotationHistoryEntry}
-            />
-          ) : (
-            <div className="text-center p-10 pointer-events-none"> 
-              <ImagePlus strokeWidth={1} className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold text-foreground mb-2">No Image Captured</h2>
-              <p className="text-muted-foreground">Click "Capture Screenshot" above, or drag and drop an image here.</p>
-            </div>
-          )}
-        </div>
-        
-        {textInput.visible && (
-          <Textarea
-            value={textInput.value}
-            onChange={(e) => setTextInput(prev => ({ ...prev, value: e.target.value }))}
-            onKeyDown={handleTextInputKeyDown}
-            onBlur={() => { 
-                if (textInput.value.trim() !== '') {
-                    handleTextInputConfirm();
-                } else {
-                    setTextInput({ x: 0, y: 0, value: '', visible: false, canvasRelativeX: 0, canvasRelativeY: 0 });
-                    setSelectedTool(null);
-                }
-            }}
-            autoFocus
-            className="fixed z-50 p-2 border rounded shadow-lg bg-card w-48 min-h-[40px] resize-none overflow-hidden"
-            style={{ left: `${textInput.x}px`, top: `${textInput.y}px`, color: currentAnnotationColor }}
-            placeholder="Type text..."
-          />
-        )}
-      </main>
-      <footer className="container mx-auto bg-card border-t border-border p-6 text-sm text-muted-foreground">
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-center text-center sm:text-left space-y-2 sm:space-y-0">
-            <p>&copy; {new Date().getFullYear()} SnapEdit. All rights reserved.</p>
-            <div className="flex items-center space-x-4">
-              <a 
-                href="https://snap-edit.moaminsharifi.com/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="hover:text-primary transition-colors flex items-center"
-              >
-                <ExternalLink className="w-4 h-4 mr-1" />
-                Live Demo
-              </a>
-              <a 
-                href="https://github.com/moaminsharifi/snap-edit" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="hover:text-primary transition-colors flex items-center"
-              >
-                <Github className="w-4 h-4 mr-1" />
-                View on GitHub
-              </a>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center sm:space-x-6 space-y-1 sm:space-y-0 text-center text-xs">
-              <p><strong>Credits:</strong> Built with <a href="https://firebase.google.com/studio" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Firebase Studio</a>.</p>
-              <p><strong>Technologies:</strong> Next.js, React, ShadCN UI, Tailwind CSS.</p>
-            </div>
-            <p className="text-xs text-left sm:text-center">
-              SnapEdit is your go-to online tool for instant screen capture and powerful image annotation. Edit screenshots with arrows, text, and shapes, all locally in your browser for maximum privacy. Perfect for quick markups and sharing.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <EditorWorkspace
+        image={image}
+        selectedTool={selectedTool}
+        annotations={annotations}
+        currentAnnotationColor={currentAnnotationColor}
+        selectedAnnotationId={selectedAnnotationId}
+        isCropping={isCropping}
+        cropPreviewRect={cropPreviewRect}
+        canvasRef={canvasRef}
+        screenshotCanvasRef={screenshotCanvasRef}
+        textInput={textInput}
+        onSelectTool={handleSelectTool}
+        onDownload={handleDownload}
+        onClearAllAnnotations={handleClearAllAnnotations}
+        onUndo={handleUndo}
+        onCopyToClipboard={handleCopyToClipboard}
+        onConfirmCrop={handleConfirmCrop}
+        onCancelCrop={handleCancelCrop}
+        onSelectColor={setCurrentAnnotationColor}
+        onDeleteSelectedAnnotation={handleDeleteSelectedAnnotation}
+        onAddAnnotation={addAnnotation}
+        onRequestTextInput={handleRequestTextInput}
+        onSetCropPreviewRect={setCropPreviewRect}
+        onSelectAnnotation={handleSelectAnnotation}
+        onUpdateAnnotation={handleUpdateAnnotation}
+        onDragStart={handleDragStart}
+        onEndAnnotationHistoryEntry={handleEndAnnotationHistoryEntry}
+        handleFileDrop={handleFileDrop}
+        handleDragOver={handleDragOver}
+        availableColors={ANNOTATION_COLORS}
+        setTextInput={setTextInput}
+        handleTextInputConfirm={handleTextInputConfirm}
+        handleTextInputKeyDown={handleTextInputKeyDown}
+      />
+      
+      <AppFooter />
     </div>
   );
 }
-
-    

@@ -3,7 +3,7 @@
 
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, RefObject } from 'react';
 import type { Tool } from './EditorToolbar';
-import type { CropRect } from './SnapEditApp';
+// import type { CropRect } from './SnapEditApp'; // No longer needed here if ScreenshotCanvas doesn't directly use it.
 import { cn } from '@/lib/utils';
 
 export interface Point {
@@ -25,6 +25,13 @@ export interface Annotation {
   radius?: number;
 }
 
+export interface CropRect { // Re-declaring or importing if needed by this component's props
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface ScreenshotCanvasProps {
   image: HTMLImageElement | null;
   tool: Tool | null;
@@ -38,7 +45,7 @@ interface ScreenshotCanvasProps {
   selectedAnnotationId: string | null;
   onSelectAnnotation: (id: string | null) => void;
   onUpdateAnnotation: (annotation: Annotation) => void;
-  onDragStart: () => void; // Callback for when a drag operation starts
+  onDragStart: () => void; 
   onEndAnnotationHistoryEntry: () => void; 
 }
 
@@ -123,8 +130,9 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
          offsetY = (rect.height - bitmapHeight * scale) / 2;
       }
       
-      const clientX = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
+      const clientX = 'touches' in e.nativeEvent ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e.nativeEvent ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
+
 
       const mouseXInElement = clientX - rect.left;
       const mouseYInElement = clientY - rect.top;
@@ -142,8 +150,8 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
         const canvas = internalCanvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
-        const clientX = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
+        const clientX = 'touches' in e.nativeEvent ? (e.nativeEvent as TouchEvent).touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e.nativeEvent ? (e.nativeEvent as TouchEvent).touches[0].clientY : e.clientY;
         return {
             x: clientX - rect.left,
             y: clientY - rect.top,
@@ -363,7 +371,7 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
           setIsDragging(true);
           setStartPoint(point); 
           setDraggedAnnotationStartPos({ x: clickedAnnotation.x, y: clickedAnnotation.y }); 
-          onDragStart(); // Notify app that drag has started for history purposes
+          onDragStart(); 
         } else {
           onSelectAnnotation(null);
         }
@@ -555,6 +563,3 @@ export const ScreenshotCanvas = forwardRef<{ performCrop: (rect: CropRect) => Pr
 );
 
 ScreenshotCanvas.displayName = 'ScreenshotCanvas';
-
-
-    
