@@ -87,9 +87,28 @@ export default function SnapEditApp() {
 
 
   const handleCaptureScreenshot = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      toast({
+        title: "Capture Failed",
+        description: "Screen capture API (getDisplayMedia) is not supported or available in your browser or current context. This can happen if you are not on a secure (HTTPS) connection, your browser is outdated, or if the page is embedded in an iframe that restricts this feature (requires 'display-capture' permission).",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
       const track = stream.getVideoTracks()[0];
+      
+      if (typeof ImageCapture === 'undefined') {
+        toast({
+          title: "Capture Failed",
+          description: "ImageCapture API is not supported in your browser. Please try using a modern browser or update your current one.",
+          variant: "destructive",
+        });
+        track.stop(); // Important to stop the track if obtained
+        return;
+      }
       
       await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -451,3 +470,6 @@ export default function SnapEditApp() {
     </div>
   );
 }
+
+
+    
